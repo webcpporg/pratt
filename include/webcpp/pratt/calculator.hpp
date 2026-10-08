@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <compare>
 #include <concepts>
 #include <cstddef>
 #include <functional>
@@ -708,8 +709,8 @@ concept environment_for = requires(E e, const E ce, std::string_view n, E::numbe
  Boost.Multiprecision's `mpfr_float` with `et_off` for instance, allocates
  through its own allocator.
 
- The key is a `std::basic_string` whose allocator is `Allocator` rebound to
- `char`, and the map's allocator is `Allocator` rebound to the map's value
+ The key holds a `std::basic_string` whose allocator is `Allocator` rebound
+ to `char`, and the map's allocator is `Allocator` rebound to the map's value
  type, so any allocator serves, whatever type it is written for:
  `environment<Number, A<char>>` and the default are both well formed. The
  map compares with `std::less<>`, so a name is looked up as a
@@ -727,9 +728,36 @@ template <number Number = boost::decimal::decimal64_t,
           class Allocator = std::allocator<std::pair<const std::string, Number>>>
 class environment {
     using key_allocator = std::allocator_traits<Allocator>::template rebind_alloc<char>;
-    using key_type = std::basic_string<char, std::char_traits<char>, key_allocator>;
+
+    /**
+     A name the environment holds: its characters, allocated through `key_allocator`.
+
+     Tip: a class with constructors of its own, not a bare `std::basic_string`. libstdc++'s
+     `std::pair` asks whether its members are implicitly default-constructible, and for a string
+     clang then instantiates the default argument `_Alloc()` of its `initializer_list`
+     constructor, a hard error for an allocator without a default constructor, which the
+     Allocator requirements allow. Asked of this class, the question has a plain answer: no.
+    */
+    class key {
+    public:
+        key(std::string_view name, const key_allocator& allocator) : text_(name, allocator) {}
+
+        friend std::strong_ordering operator<=>(const key& a, const key& b) noexcept = default;
+
+        friend bool operator==(const key& a, std::string_view b) noexcept {
+            return std::string_view(a.text_) == b;
+        }
+
+        friend std::strong_ordering operator<=>(const key& a, std::string_view b) noexcept {
+            return std::string_view(a.text_) <=> b;
+        }
+
+    private:
+        std::basic_string<char, std::char_traits<char>, key_allocator> text_;
+    };
+
     using map_allocator =
-        std::allocator_traits<Allocator>::template rebind_alloc<std::pair<const key_type, Number>>;
+        std::allocator_traits<Allocator>::template rebind_alloc<std::pair<const key, Number>>;
 
 public:
     /** The type of the values. */
@@ -788,13 +816,12 @@ public:
             at->second = std::move(value);
             return {};
         }
-        names_.emplace_hint(at, key_type(name, key_allocator(names_.get_allocator())),
-                            std::move(value));
+        names_.emplace_hint(at, key(name, key_allocator(names_.get_allocator())), std::move(value));
         return {};
     }
 
 private:
-    std::map<key_type, Number, std::less<>, map_allocator> names_;
+    std::map<key, Number, std::less<>, map_allocator> names_;
 };
 
 namespace detail {
