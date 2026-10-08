@@ -1,0 +1,295 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// Tests the calculator's number concept and its lazy lexer, over decimal64_t and over double: the
+// kinds, texts and values of the tokens, numbers built in the number type's own arithmetic, the
+// invalid token, whitespace, and the end token that stays.
+
+#include <webcpp/pratt/calculator.hpp>
+
+#include <boost/core/lightweight_test.hpp>
+#include <boost/decimal.hpp>
+
+#include <cstddef>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "require.hpp"
+
+namespace pratt = webcpp::pratt;
+namespace calc = webcpp::pratt::calc;
+
+using boost::decimal::decimal64_t;
+using webcpp::test::require;
+
+static_assert(calc::number<decimal64_t>);
+static_assert(calc::number<double>);
+static_assert(!calc::number<std::string>);
+// std's pow, fmod and trunc of an int answer a double, so int is not closed under them.
+static_assert(!calc::number<int>);
+static_assert(pratt::token_stream<calc::stream<decimal64_t>>);
+static_assert(pratt::token_stream<calc::stream<double>>);
+
+namespace {
+
+/** A token a source is expected to lex to. */
+template <class Number>
+struct expected_token {
+    calc::kind k{};
+    std::string_view text{};
+    Number value{};
+};
+
+/** The name of a kind, so that a failure prints what was lexed. */
+std::string_view name_of(calc::kind k) {
+    switch (k) {
+        case calc::kind::number: return "number";
+        case calc::kind::name: return "name";
+        case calc::kind::plus: return "plus";
+        case calc::kind::minus: return "minus";
+        case calc::kind::star: return "star";
+        case calc::kind::slash: return "slash";
+        case calc::kind::percent: return "percent";
+        case calc::kind::caret: return "caret";
+        case calc::kind::lparen: return "lparen";
+        case calc::kind::rparen: return "rparen";
+        case calc::kind::assign: return "assign";
+        case calc::kind::eq: return "eq";
+        case calc::kind::ne: return "ne";
+        case calc::kind::lt: return "lt";
+        case calc::kind::le: return "le";
+        case calc::kind::gt: return "gt";
+        case calc::kind::ge: return "ge";
+        case calc::kind::increment: return "increment";
+        case calc::kind::decrement: return "decrement";
+        case calc::kind::invalid: return "invalid";
+        case calc::kind::end: return "end";
+    }
+    return "unknown";
+}
+
+/**
+ Lexes `source` and checks that it yields `tokens`, then the end token.
+
+ Tip: each token is checked through peek, then through advance, which must return the same one.
+*/
+template <class Number>
+void lexes_to(std::string_view source, const std::vector<expected_token<Number>>& tokens) {
+    calc::stream<Number> lexer(source);
+    for (const expected_token<Number>& want : tokens) {
+        BOOST_TEST_EQ(name_of(lexer.peek().k), name_of(want.k));
+        BOOST_TEST(!lexer.at_end());
+        const calc::token<Number> got = lexer.advance();
+        BOOST_TEST_EQ(name_of(got.k), name_of(want.k));
+        BOOST_TEST_EQ(got.text, want.text);
+        BOOST_TEST(got.value == want.value);
+    }
+    BOOST_TEST(lexer.at_end());
+    const calc::token<Number> end = lexer.advance();
+    BOOST_TEST_EQ(name_of(end.k), "end");
+    BOOST_TEST(end.text.empty());
+    BOOST_TEST(end.value == Number(0));
+}
+
+/** The value `source` lexes to, which must be one number token and nothing else. */
+template <class Number>
+Number number_of(std::string_view source) {
+    calc::stream<Number> lexer(source);
+    const calc::token<Number> token = lexer.advance();
+    require(BOOST_TEST_EQ(name_of(token.k), "number"));
+    BOOST_TEST_EQ(token.text, source);
+    BOOST_TEST(lexer.at_end());
+    return token.value;
+}
+
+template <class Number>
+void an_assignment_lexes_with_its_texts_and_values() {
+    using calc::kind;
+    lexes_to<Number>("a = 43 + 12", {
+                                        {kind::name, "a", Number(0)},
+                                        {kind::assign, "=", Number(0)},
+                                        {kind::number, "43", Number(43)},
+                                        {kind::plus, "+", Number(0)},
+                                        {kind::number, "12", Number(12)},
+                                    });
+}
+
+template <class Number>
+void every_two_character_operator_is_one_token() {
+    using calc::kind;
+    lexes_to<Number>("++ -- == != <= >=", {
+                                              {kind::increment, "++", Number(0)},
+                                              {kind::decrement, "--", Number(0)},
+                                              {kind::eq, "==", Number(0)},
+                                              {kind::ne, "!=", Number(0)},
+                                              {kind::le, "<=", Number(0)},
+                                              {kind::ge, ">=", Number(0)},
+                                          });
+    lexes_to<Number>("+++", {
+                                {kind::increment, "++", Number(0)},
+                                {kind::plus, "+", Number(0)},
+                            });
+}
+
+template <class Number>
+void every_one_character_operator_is_one_token() {
+    using calc::kind;
+    lexes_to<Number>("+-*/%^()=<>", {
+                                        {kind::plus, "+", Number(0)},
+                                        {kind::minus, "-", Number(0)},
+                                        {kind::star, "*", Number(0)},
+                                        {kind::slash, "/", Number(0)},
+                                        {kind::percent, "%", Number(0)},
+                                        {kind::caret, "^", Number(0)},
+                                        {kind::lparen, "(", Number(0)},
+                                        {kind::rparen, ")", Number(0)},
+                                        {kind::assign, "=", Number(0)},
+                                        {kind::lt, "<", Number(0)},
+                                        {kind::gt, ">", Number(0)},
+                                    });
+}
+
+template <class Number>
+void a_name_is_letters_digits_and_underscores() {
+    using calc::kind;
+    lexes_to<Number>("_x1 Ab9 2y", {
+                                       {kind::name, "_x1", Number(0)},
+                                       {kind::name, "Ab9", Number(0)},
+                                       {kind::number, "2", Number(2)},
+                                       {kind::name, "y", Number(0)},
+                                   });
+}
+
+void a_decimal_fraction_is_exact_in_decimal() {
+    BOOST_TEST(number_of<decimal64_t>("1.5") == decimal64_t(15, -1));
+    BOOST_TEST(number_of<decimal64_t>("0.1") == decimal64_t(1, -1));
+    BOOST_TEST(number_of<decimal64_t>("12.034") == decimal64_t(12034, -3));
+    BOOST_TEST(number_of<decimal64_t>("0.000000000000001") == decimal64_t(1, -15));
+    // In decimal, 0.1 + 0.2 is 0.3, which no double sum of the two literals is.
+    BOOST_TEST(number_of<decimal64_t>("0.1") + number_of<decimal64_t>("0.2") ==
+               number_of<decimal64_t>("0.3"));
+}
+
+/**
+ In double, a fraction lexes to the literal's value, the nearest double.
+
+ Tip: 1.005 and 0.07 are among the values a division by ten per fraction digit misses by one
+ unit in the last place; one division by ten to the number of digits finds them.
+*/
+void a_double_fraction_is_the_nearest_double() {
+    BOOST_TEST_EQ(number_of<double>("0.1"), 0.1);
+    BOOST_TEST_EQ(number_of<double>("1.005"), 1.005);
+    BOOST_TEST_EQ(number_of<double>("0.07"), 0.07);
+    BOOST_TEST_EQ(number_of<double>("1.5"), 1.5);
+    BOOST_TEST_EQ(number_of<double>("12.034"), 12.034);
+    BOOST_TEST_EQ(number_of<double>("3.14159"), 3.14159);
+    BOOST_TEST_EQ(number_of<double>("0.123"), 0.123);
+}
+
+template <class Number>
+void a_point_without_a_digit_after_it_is_invalid() {
+    using calc::kind;
+    lexes_to<Number>("3.", {
+                               {kind::number, "3", Number(3)},
+                               {kind::invalid, ".", Number(0)},
+                           });
+    lexes_to<Number>("3.+1", {
+                                 {kind::number, "3", Number(3)},
+                                 {kind::invalid, ".", Number(0)},
+                                 {kind::plus, "+", Number(0)},
+                                 {kind::number, "1", Number(1)},
+                             });
+    lexes_to<Number>(".5", {
+                               {kind::invalid, ".", Number(0)},
+                               {kind::number, "5", Number(5)},
+                           });
+}
+
+template <class Number>
+void an_unknown_character_is_one_invalid_token() {
+    using calc::kind;
+    lexes_to<Number>("$", {
+                              {kind::invalid, "$", Number(0)},
+                          });
+    lexes_to<Number>("1 $@ 2", {
+                                   {kind::number, "1", Number(1)},
+                                   {kind::invalid, "$", Number(0)},
+                                   {kind::invalid, "@", Number(0)},
+                                   {kind::number, "2", Number(2)},
+                               });
+    lexes_to<Number>("!", {
+                              {kind::invalid, "!", Number(0)},
+                          });
+}
+
+template <class Number>
+void spaces_tabs_and_line_ends_are_whitespace() {
+    using calc::kind;
+    lexes_to<Number>("\t1\r\n+ \t2\r\n", {
+                                             {kind::number, "1", Number(1)},
+                                             {kind::plus, "+", Number(0)},
+                                             {kind::number, "2", Number(2)},
+                                         });
+    lexes_to<Number>("", {});
+    lexes_to<Number>(" \t\r\n", {});
+}
+
+template <class Number>
+void the_end_token_stays() {
+    calc::stream<Number> lexer("7");
+    BOOST_TEST(!lexer.at_end());
+    BOOST_TEST(lexer.advance().value == Number(7));
+    for (int i = 0; i < 3; ++i) {
+        BOOST_TEST(lexer.at_end());
+        BOOST_TEST_EQ(name_of(lexer.peek().k), "end");
+        BOOST_TEST_EQ(name_of(lexer.advance().k), "end");
+    }
+    BOOST_TEST(lexer.at_end());
+}
+
+template <class Number>
+void peek_does_not_consume() {
+    calc::stream<Number> lexer("x+");
+    BOOST_TEST_EQ(lexer.peek().text, "x");
+    BOOST_TEST_EQ(lexer.peek().text, "x");
+    BOOST_TEST_EQ(lexer.advance().text, "x");
+    BOOST_TEST_EQ(lexer.peek().text, "+");
+}
+
+/** A token's text is a view into the source, which the stream never copies. */
+template <class Number>
+void a_text_points_into_the_source() {
+    const std::string_view source = "ab + 12";
+    calc::stream<Number> lexer(source);
+    BOOST_TEST(lexer.advance().text.data() == source.data());
+    BOOST_TEST(lexer.advance().text.data() == source.data() + 3);
+    BOOST_TEST(lexer.advance().text.data() == source.data() + 5);
+}
+
+template <class Number>
+void every_case() {
+    an_assignment_lexes_with_its_texts_and_values<Number>();
+    every_two_character_operator_is_one_token<Number>();
+    every_one_character_operator_is_one_token<Number>();
+    a_name_is_letters_digits_and_underscores<Number>();
+    a_point_without_a_digit_after_it_is_invalid<Number>();
+    an_unknown_character_is_one_invalid_token<Number>();
+    spaces_tabs_and_line_ends_are_whitespace<Number>();
+    the_end_token_stays<Number>();
+    peek_does_not_consume<Number>();
+    a_text_points_into_the_source<Number>();
+}
+
+}  // namespace
+
+int main() {
+    every_case<decimal64_t>();
+    every_case<double>();
+    a_decimal_fraction_is_exact_in_decimal();
+    a_double_fraction_is_the_nearest_double();
+    return boost::report_errors();
+}

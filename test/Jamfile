@@ -15,3 +15,4 @@ webcpp.headers-alone pratt : ../include ;
 webcpp.run errors : errors_test.cpp ;
 webcpp.run engine : engine_test.cpp ;
 webcpp.run sexpr : sexpr_test.cpp ;
+webcpp.run lexer : lexer_test.cpp ;
