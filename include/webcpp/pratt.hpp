@@ -6,7 +6,9 @@
 
 /**
  The engine: include this one header to use pratt's parser without its
- calculator. The calculator is included by name, `<webcpp/pratt/calculator.hpp>`.
+ calculator. It leaves out `<webcpp/pratt/calculator.hpp>`, which brings
+ Boost.Decimal, a heavy dependency the engine does not need; the
+ calculator is included by name.
 
  @see "Introduction", in the guide.
 */
