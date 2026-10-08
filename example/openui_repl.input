@@ -1,0 +1,14 @@
+root = Stack()
+root = Stack(spacing: 8, Button(label: "Pay"), Text("Total"))
+view = Row(Button(label: "ok"), gap: 4)
+Stack(1, 2)(3)
+(x)
+Stack(1
+= 3
+root = Stack(label: "unterminated)
+root @ 3
+Text("crlf")
+    
+exit 
+exit
+ignored

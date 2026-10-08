@@ -1,0 +1,11 @@
+(= root (call Stack))
+(= root (call Stack (: spacing 8) (call Button (: label "Pay")) (call Text "Total")))
+(= view (call Row (call Button (: label "ok")) (: gap 4)))
+(call (call Stack 1 2) 3)
+x
+error: expected closing token
+error: unexpected token
+error: unexpected end of input
+error: invalid character
+(call Text "crlf")
+exit

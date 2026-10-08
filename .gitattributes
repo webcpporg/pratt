@@ -1,2 +1,5 @@
 * text=auto eol=lf
 *.bat text eol=crlf
+# An example's standard input is committed byte for byte: a REPL's input holds lines that end in
+# "\r\n" on purpose, which text=auto would turn into "\n".
+*.input -text

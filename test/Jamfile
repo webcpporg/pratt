@@ -19,3 +19,5 @@ webcpp.run lexer : lexer_test.cpp ;
 webcpp.run calculator : calculator_test.cpp ;
 webcpp.run allocation : allocation_test.cpp ;
 webcpp.run depth : depth_test.cpp ;
+# The grammar of the openui REPL example, which the test shares with it.
+webcpp.run openui : openui_test.cpp : <include>../example ;
