@@ -16,3 +16,5 @@ webcpp.run errors : errors_test.cpp ;
 webcpp.run engine : engine_test.cpp ;
 webcpp.run sexpr : sexpr_test.cpp ;
 webcpp.run lexer : lexer_test.cpp ;
+webcpp.run calculator : calculator_test.cpp ;
+webcpp.run allocation : allocation_test.cpp ;
