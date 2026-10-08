@@ -75,12 +75,15 @@ build, on a stack of 8{nbsp}MiB:
 | 12741 (657 B)
 |===
 
-The shape that costs the most is a grouping, by a few bytes a level. The
-default is the largest power of two at most half the deepest debug parse
-that wasm's default stack holds: half of 232 is 116, hence 64. A parse at
-the default depth uses at most half the stack, in the worst shape and the
-slowest build, on every target pratt is tested on; a build with `-O2` and a
-native stack hold far more.
+Of these three, the shape that costs the most is a grouping, by a few bytes
+a level. Over every shape of the calculator's grammar and of
+<<pratt-openui,openui-lang's>>, the deepest debug parse that wasm's default
+stack holds is at least 203 calls: openui-lang's call shape, on wasip2. The
+calculator's least is 214, a grouping with a `pow` inside. The default is
+the largest power of two at most half of that: half of 203 is 101, hence
+64. A parse at the default depth uses at most half the stack, in the worst
+shape and the slowest build, on every target pratt is tested on; a build
+with `-O2` and a native stack hold far more.
 
 In a debug build on wasm, a level of grouping costs 272 bytes, a level of
 `+^+` 256 and a level of sign 240, plus at most about 7.5{nbsp}KiB that a parse

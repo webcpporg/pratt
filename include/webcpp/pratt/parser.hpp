@@ -30,17 +30,21 @@ namespace webcpp::pratt {
 // | `- - ... - 1`             | 263 (249 B)          | 450 (146 B)  | 18016 (465 B)       |
 // | `2 ^ 2 ^ ... ^ 2`         | 240 (273 B)          | 405 (162 B)  | 12741 (657 B)       |
 //
-// Half of 232 is 116, hence 64. In a debug build on wasm, a level of grouping costs 272 bytes, a
-// level of `^` 256 and a level of sign 240, plus at most about 7.5 KiB that a parse needs at any
-// depth, its heaviest operand, a `pow`, included.
+// Over every shape of the calculator's grammar and of openui-lang's, the deepest parse that runs
+// in a debug build on wasm is at least 203 calls, openui-lang's call shape on wasip2; the
+// calculator's least is 214, a grouping with a `pow` inside. Half of 203 is 101, and the largest
+// power of two at most that is 64. In a debug build on wasm, a level of grouping costs 272 bytes,
+// a level of `^` 256 and a level of sign 240, plus at most about 7.5 KiB that a parse needs at
+// any depth, its heaviest operand, a `pow`, included.
 
 /**
  The deepest nesting of @ref parser::expression calls a parse allows unless
  told otherwise.
 
  It is measured, not chosen: the largest power of two at most half the
- deepest calculator parse that wasm's default stack of 64 KiB holds in a
- debug build. A program that raises the limit raises its stack with it,
+ deepest parse that wasm's default stack of 64 KiB holds in a debug build,
+ in the shape that costs the most of the calculator's grammar and of
+ openui-lang's. A program that raises the limit raises its stack with it,
  with `-Wl,-z,stack-size=` on wasm and the thread's stack natively.
 
  @see "Limits", in the guide.

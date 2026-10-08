@@ -36,14 +36,16 @@ Two layers, kept apart:
   way would escape the limit, and could overflow the stack. The argument
   loop of the openui-lang grammar calls `expression` too.
 - **`default_max_depth` is measured, not chosen.** It is the largest power
-  of two at most half the deepest calculator parse that wasm's default
-  stack of 64 KiB holds in a debug build, over the three shapes of
-  `test/depth_test.cpp`. A change to the frames of `expression`, of the
-  helpers or of the calculator's nud and led may move it: measure again on
-  wasip2 and wasip3 in their debug build, and update together the table
-  above `default_max_depth` in `parser.hpp`, the value, and the "Limits"
-  chapter of the page, which repeats the table verbatim and quotes the cost
-  of a level. `depth_test` fails on wasm when the default no longer fits.
+  of two at most half the deepest parse that wasm's default stack of
+  64 KiB holds in a debug build, in the shape that costs the most of the
+  calculator's grammar and of openui-lang's: at least 203 calls, openui-lang's
+  call shape on wasip2, so half of 203 is 101, hence 64. The table holds the
+  three shapes of `test/depth_test.cpp`. A change to the frames of
+  `expression`, of the helpers, of the calculator's nud and led or of
+  openui-lang's may move it: measure again on wasip2 and wasip3 in their
+  debug build, and update together the table above `default_max_depth` in
+  `parser.hpp`, the value, and the "Limits" chapter of the page, which
+  repeats the table verbatim and quotes the cost of a level. `depth_test` fails on wasm when the default no longer fits.
 - **The first error in reading order wins.** The lexers are lazy, and a
   character that starts no token is a token of the highest binding power,
   whose nud and led return `invalid_character`, so the engine reaches it
