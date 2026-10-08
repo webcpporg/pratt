@@ -16,45 +16,31 @@
 #include <istream>
 #include <ostream>
 #include <string>
+#include <string_view>
 
+#include "../repl.hpp"
 #include "grammar.hpp"
 
 namespace webcpp::example::openui {
 
 /**
  Parses each line of `in` and writes its S-expression to `out`, or `error: `
- and the error's message.
-
- A line's one trailing carriage return is dropped, so a line that ends in a
- carriage return and a line feed reads as one that ends in a line feed. A
- line that is empty or holds only spaces is skipped. The line `exit`,
- exactly, ends the session; `exit ` with a space is parsed as any other
- line, the name `exit`.
+ and the error's message, through the line-reading loop of
+ @ref webcpp::example::repl.
 
  @param in The lines.
  @param out Where the results go.
  @return 0, the program's status, at `exit` or at the end of `in`.
 */
 inline int repl(std::istream& in, std::ostream& out) {
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-        if (line == "exit") {
-            return 0;
-        }
-        if (line.find_first_not_of(' ') == std::string::npos) {
-            continue;
-        }
+    return webcpp::example::repl(in, out, [](std::string_view line, std::ostream& line_out) {
         const pratt::result<std::string> tree = pratt::parse(grammar{}, stream(line));
         if (tree.has_error()) {
-            out << "error: " << tree.error().message() << '\n';
-            continue;
+            line_out << "error: " << tree.error().message() << '\n';
+            return;
         }
-        out << *tree << '\n';
-    }
-    return 0;
+        line_out << *tree << '\n';
+    });
 }
 
 }  // namespace webcpp::example::openui

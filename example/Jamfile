@@ -14,3 +14,5 @@ webcpp.targets native wasip2 wasip3 ;
 webcpp.example openui_repl.cpp ;
 # The same REPL, on an input that ends without a newline and without exit.
 webcpp.example openui_repl_eof.cpp ;
+# The calculator's REPL, on the session of calculator_repl.input.
+webcpp.example calculator_repl.cpp ;

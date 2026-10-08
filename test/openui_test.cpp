@@ -69,6 +69,12 @@ void a_string_keeps_its_commas_and_colons() {
     parses_to(R"(Text("a, b: c"))", R"((call Text "a, b: c"))");
 }
 
+/** A string's `"..."` is found by its closing quote alone, so a `(` inside it never opens a call.
+ */
+void a_string_keeps_a_parenthesis_whole() {
+    parses_to(R"(Text("a(b"))", R"((call Text "a(b"))");
+}
+
 void a_parenthesis_after_a_grouping_calls_it() {
     parses_to("(a)(b)", "(call a b)");
 }
@@ -117,6 +123,7 @@ int main() {
     the_reference_session_fails_as_recorded();
     a_call_without_arguments_is_the_callee_alone();
     a_string_keeps_its_commas_and_colons();
+    a_string_keeps_a_parenthesis_whole();
     a_parenthesis_after_a_grouping_calls_it();
     assignment_associates_to_the_right();
     a_pair_binds_tighter_than_an_assignment();
