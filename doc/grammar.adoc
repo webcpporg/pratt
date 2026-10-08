@@ -114,11 +114,12 @@ grammar's, `make`, which builds the node from the operands' nodes:
 This grammar is written with all six, and its node is the S-expression of
 the parse, `(+ 1 (* 2 3))`, so that its output shows how each line grouped.
 Its tokens are characters, as in the first grammar. Its binding powers put
-the sign below `^`, and the postfix `!` above everything:
+the sign below `+^+`, and the postfix `!` above everything; the grammar is
+shown here without its nud and its led, which follow:
 
 [source]
 ----
-include::{examples}/pratt_helpers.cpp[tag=powers,indent=0]
+include::{examples}/pratt_helpers.cpp[tags=powers;close,indent=0]
 ----
 
 Its nud makes a digit a literal, `-` a prefix operator and `(` a grouping.

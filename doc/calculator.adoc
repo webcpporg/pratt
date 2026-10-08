@@ -171,8 +171,10 @@ include::{examples}/pratt_double.expected[]
 The integral powers are still exact, `2 ^ 60` included, since repeated
 squaring multiplies powers of two, which `double` holds exactly. The
 decimal fractions are not: `0.1` and `0.2` are the nearest binary
-fractions, whose sum is not the nearest one to `0.3`. `2 ^ 0.5` is not an
-integral power, and is the result of `std::pow`.
+fractions, whose sum is not the nearest one to `0.3`. `2.25 ^ 0.5` is not
+an integral power, and is the result of `std::pow`. Its exact value, 1.5,
+is a `double`, so any `pow` that errs by less than an ulp returns it
+exactly, on every standard library.
 
 [#pratt-calculator-environment]
 === The environment

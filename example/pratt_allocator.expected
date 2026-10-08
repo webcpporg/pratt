@@ -1,6 +1,6 @@
-x = 6 -> allocations: 1
-y = 7 -> allocations: 2
-x * y + 1 -> allocations: 2
-x = 8 -> allocations: 2
-x * y -> allocations: 2
-environment destroyed -> deallocations: 2
+x = 6 -> allocated
+y = 7 -> allocated
+x * y + 1 -> allocated nothing
+x = 8 -> allocated nothing
+x * y -> allocated nothing
+environment destroyed -> deallocations == allocations: yes

@@ -81,14 +81,11 @@ struct arithmetic {
         }
     }
 
-    /**
-     What `token` means at the start of an expression: a digit, or a minus sign.
-
-     Tip: the minus recurses through the parser's expression(), which max_depth bounds, hence the
-     exemption from misc-no-recursion.
-    */
+    // nud() and led() recurse through the parser's expression(), which max_depth bounds, hence the
+    // exemption from misc-no-recursion, outside the regions the guide shows.
+    // NOLINTBEGIN(misc-no-recursion)
+    /** What `token` means at the start of an expression: a digit, or a minus sign. */
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<int> nud(Parser& p, char token) const {
         if (token >= '0' && token <= '9') {
             return token - '0';
@@ -106,13 +103,8 @@ struct arithmetic {
         return pratt::error::unexpected_token;
     }
 
-    /**
-     What `token` means after the expression `left`: a binary operator.
-
-     Tip: the right operand recurses through expression(), as the minus does.
-    */
+    /** What `token` means after the expression `left`: a binary operator. */
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<int> led(Parser& p, char token, int left) const {
         const pratt::result<int> right = p.expression(lbp(token));
         if (right.has_error()) {
@@ -126,6 +118,7 @@ struct arithmetic {
     }
 };
 
+// NOLINTEND(misc-no-recursion)
 }  // namespace
 
 int main() {

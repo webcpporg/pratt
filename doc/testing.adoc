@@ -150,8 +150,8 @@ alone:
 | Target | How it is built and run
 
 | native
-| Any toolset that is not one of the two below, Clang and GCC among them.
-  With exceptions, unless its user asks for `exception-handling=off`,
+| Any toolset that is not one of the two below: GCC, Clang and MSVC among
+  them. With exceptions, unless its user asks for `exception-handling=off`,
   which links webcpp's `tools/throw_exception.cpp`, as on wasip2.
 
 | wasip2

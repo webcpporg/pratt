@@ -18,10 +18,12 @@ lets its user choose the allocator of what it does allocate. In pratt:
 * *The calculator's parse allocates nothing.* Its lexer is lazy and holds a
   view of the line; its tokens and its nodes are views and numbers.
 * *The environment allocates through its `Allocator`.*
-  `calc::environment<Number, Allocator>` allocates in `assign` alone, when a
-  name is new: the map's node, and the name's characters when the name is
-  longer than the string's own small buffer. Replacing the value of a name
-  it holds and reading one allocate nothing. An environment of the
+  `calc::environment<Number, Allocator>` allocates through it alone: in
+  `assign`, when a name is new, the map's node and the name's characters
+  when the name is longer than the string's own small buffer; and, with a
+  standard library whose map allocates when it is built, as MSVC's does,
+  then. Replacing the value of a name it holds and reading one allocate
+  nothing. An environment of the
   program's own allocates what it chooses, and the one of
   <<pratt-calculator-environment>> nothing at all.
 * *A `Number` that allocates does so through its own allocator.*
@@ -56,10 +58,13 @@ It prints:
 include::{examples}/pratt_allocator.expected[]
 ----
 
-`x` and `y` are new names, one node each, and short enough for the string's
-small buffer, so their keys allocate nothing. Evaluating `x * y + 1`, and
-assigning `x` again, allocate nothing, and the environment gives back its
-two nodes when it is destroyed.
+Each line prints what it added: `x` and `y` are new names, which allocate
+through the allocator, while evaluating `x * y + 1` and assigning `x` again
+allocate nothing, and the environment gives back all it allocated when it
+is destroyed. How many allocations a new name takes is the standard
+library's: a node of the map, the name's characters when they do not fit
+the string's small buffer, and, in a debug build of MSVC's library, the
+proxies it keeps for its checked iterators.
 
 pratt's own test of allocation replaces the global `operator new` for its
 program alone, and counts every call: none across a session of the

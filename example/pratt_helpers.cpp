@@ -83,11 +83,11 @@ struct sexpr {
     // end::powers[]
 
     // nud() and led() recurse through the helpers and the parser's expression(), which max_depth
-    // bounds, hence the exemption from misc-no-recursion.
+    // bounds, hence the exemption from misc-no-recursion, outside the regions the guide shows.
+    // NOLINTBEGIN(misc-no-recursion)
 
     // tag::nud[]
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> nud(Parser& p, char token) const {
         if (token >= '0' && token <= '9') {
             return pratt::literal(
@@ -106,7 +106,6 @@ struct sexpr {
 
     // tag::led[]
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> led(Parser& p, char token, std::string left) const {
         switch (token) {
             case '+':
@@ -119,7 +118,11 @@ struct sexpr {
     }
 
     // end::led[]
+    // NOLINTEND(misc-no-recursion)
+    // tag::close[]
 };
+
+// end::close[]
 
 }  // namespace
 

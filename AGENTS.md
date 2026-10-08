@@ -57,9 +57,13 @@ Two layers, kept apart:
   are `division_by_zero`. Its default number type is `decimal64_t`, for
   exactness.
 - **Allocation.** The engine and the calculator's parse allocate nothing;
-  `calc::environment` allocates only in `assign` for a new name, through its
-  `Allocator`. `test/allocation_test.cpp` replaces the global `operator new`
-  to prove it, and fails on a change that allocates.
+  `calc::environment` allocates through its `Allocator` alone, for a new
+  name. `test/allocation_test.cpp` replaces the global `operator new` to
+  prove it, and fails on a change that allocates. A test or an example
+  never states how many allocations a standard library makes: MSVC's map
+  allocates when it is built, and in a debug build each container adds a
+  proxy. It compares what a step adds, and that every allocation is given
+  back.
 - **No exceptions in a header.** The same headers build without exceptions
   on wasip2: no `throw`, `try` or `catch` under `include/`.
 - **openui-lang.** The micro-subset in `example/openui/grammar.hpp` is the

@@ -17,9 +17,11 @@
 
 #include <cmath>
 #include <concepts>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <numbers>
+#include <string>
 #include <string_view>
 
 #include "environments.hpp"
@@ -393,10 +395,13 @@ void a_failing_assign_is_returned_unchanged() {
 }
 
 /**
- calc::environment allocates its map's nodes and its keys through the user's allocator.
+ calc::environment allocates its map's nodes and its keys through the user's allocator: a new name
+ allocates, and a lookup, a replaced value and an evaluation allocate nothing.
 
- Tip: each new name is one node and one key, and a long key does not fit a small-string buffer;
- assigning a name again replaces its value without allocating.
+ Tip: only what each step adds is compared, never a total: a standard library may also allocate
+ through the allocator when the map is built (MSVC's head node, and in a debug build its container
+ proxies), so the exact count is the library's. What every one holds is that the allocator gives
+ back all it allocated.
 */
 void the_environment_allocates_through_its_allocator() {
     allocation_count count;
@@ -404,17 +409,20 @@ void the_environment_allocates_through_its_allocator() {
         using counted = calc::environment<decimal64_t, counting<char>>;
         static_assert(std::same_as<counted::allocator_type, counting<char>>);
         counted env{counting<char>(&count)};
-        BOOST_TEST_EQ(count.allocations, 0U);
         for (const std::string_view name : {first_long_name, second_long_name, third_long_name}) {
+            const std::size_t before = count.allocations;
             BOOST_TEST(env.assign(name, decimal64_t(1)).has_value());
+            BOOST_TEST_GT(count.allocations, before);
         }
-        BOOST_TEST_EQ(count.allocations, 6U);
+        const std::size_t named = count.allocations;
         BOOST_TEST(env.assign(second_long_name, decimal64_t(2)).has_value());
-        BOOST_TEST_EQ(count.allocations, 6U);
+        BOOST_TEST_EQ(count.allocations, named);
         BOOST_TEST(value_of(env, second_long_name) == decimal64_t(2));
         BOOST_TEST(value_of(env, first_long_name) == decimal64_t(1));
         BOOST_TEST(env.lookup("absent") == nullptr);
-        BOOST_TEST_EQ(count.deallocations, 0U);
+        BOOST_TEST_EQ(count.allocations, named);
+        BOOST_TEST(calc::evaluate(std::string(first_long_name) + " * 2 + 1", env).has_value());
+        BOOST_TEST_EQ(count.allocations, named);
     }
     BOOST_TEST_EQ(count.deallocations, count.allocations);
 }

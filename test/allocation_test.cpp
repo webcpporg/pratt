@@ -21,6 +21,10 @@
 #include <new>
 #include <string_view>
 
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
+
 #include "environments.hpp"
 
 namespace calc = webcpp::pratt::calc;
@@ -65,15 +69,41 @@ void operator delete(void* memory, std::size_t /*size*/) noexcept {
     std::free(memory);
 }
 
+namespace {
+
 /**
- The aligned allocation, from aligned_alloc, whose size must be a multiple of the alignment.
+ Memory of `size` bytes aligned to `alignment`, from aligned_alloc, whose size must be a multiple of
+ the alignment.
+
+ Tip: the UCRT of MSVC has no aligned_alloc, and memory from its _aligned_malloc is given back with
+ _aligned_free, never free, hence the two below.
 */
+void* aligned_memory(std::size_t size, std::size_t alignment) {
+    const std::size_t rounded =
+        size == 0 ? alignment : (size + alignment - 1) / alignment * alignment;
+#ifdef _MSC_VER
+    return _aligned_malloc(rounded, alignment);
+#else
+    return std::aligned_alloc(alignment, rounded);
+#endif
+}
+
+/** Gives back what aligned_memory took. */
+void free_aligned_memory(void* memory) noexcept {
+#ifdef _MSC_VER
+    _aligned_free(memory);
+#else
+    std::free(memory);
+#endif
+}
+
+}  // namespace
+
+/** The aligned allocation, from aligned_memory. */
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void* operator new(std::size_t size, std::align_val_t alignment) {
     ++global_allocations;
-    const auto bytes = static_cast<std::size_t>(alignment);
-    const std::size_t rounded = size == 0 ? bytes : (size + bytes - 1) / bytes * bytes;
-    void* memory = std::aligned_alloc(bytes, rounded);
+    void* memory = aligned_memory(size, static_cast<std::size_t>(alignment));
     if (memory == nullptr) {
         std::abort();
     }
@@ -82,12 +112,12 @@ void* operator new(std::size_t size, std::align_val_t alignment) {
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* memory, std::align_val_t /*alignment*/) noexcept {
-    std::free(memory);
+    free_aligned_memory(memory);
 }
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* memory, std::size_t /*size*/, std::align_val_t /*alignment*/) noexcept {
-    std::free(memory);
+    free_aligned_memory(memory);
 }
 
 namespace {

@@ -5,7 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // calc::environment with an allocator of the program's own, which counts what the environment
-// allocates: a node for each new name, and nothing for an evaluation, a read or a replaced value.
+// allocates: a new name allocates, and an evaluation, a read or a replaced value allocates nothing.
+// Only what each line adds is printed, since how many allocations a map makes is its standard
+// library's own.
 
 #include <webcpp/pratt/calculator.hpp>
 
@@ -69,11 +71,13 @@ int main() {
     {
         calc::environment<boost::decimal::decimal64_t, counting<char>> env{counting<char>(&count)};
         for (const std::string_view line : {"x = 6", "y = 7", "x * y + 1", "x = 8", "x * y"}) {
+            const std::size_t before = count.allocations;
             const bool evaluated = calc::evaluate(line, env).has_value();
-            std::cout << line << (evaluated ? "" : " failed")
-                      << " -> allocations: " << count.allocations << '\n';
+            std::cout << line << (evaluated ? "" : " failed") << " -> "
+                      << (count.allocations > before ? "allocated" : "allocated nothing") << '\n';
         }
     }
-    std::cout << "environment destroyed -> deallocations: " << count.deallocations << '\n';
+    std::cout << "environment destroyed -> deallocations == allocations: "
+              << (count.deallocations == count.allocations ? "yes" : "no") << '\n';
     // end::use[]
 }

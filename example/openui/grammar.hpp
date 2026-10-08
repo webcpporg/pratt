@@ -282,9 +282,9 @@ struct grammar {
      @return The node of the assignment, of the pair or of the call, or the
      error of the token or of its operands.
     */
+    // NOLINTBEGIN(misc-no-recursion)
     // tag::led[]
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<node_type> led(Parser& p, const token& t, node_type left) const {
         switch (t.k) {
             case kind::assign:
@@ -299,6 +299,7 @@ struct grammar {
     }
 
     // end::led[]
+    // NOLINTEND(misc-no-recursion)
 
 private:
     /**
@@ -308,9 +309,9 @@ private:
      Tip: `,` has lbp 0, so it ends the expression of an argument; the loop
      reads it here, inside the led, and never descends around the engine.
     */
+    // NOLINTBEGIN(misc-no-recursion)
     // tag::call[]
     template <class Parser>
-    // NOLINTNEXTLINE(misc-no-recursion)
     static pratt::result<node_type> call(Parser& p, node_type callee) {
         node_type node = "(call " + std::move(callee);
         if (p.peek().k == kind::rparen) {
@@ -337,6 +338,7 @@ private:
     }
 
     // end::call[]
+    // NOLINTEND(misc-no-recursion)
 };
 
 }  // namespace webcpp::example::openui
