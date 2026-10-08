@@ -135,6 +135,16 @@ binary approximation of it. The lexer builds each number in the number
 type's own arithmetic, its digits as one integer divided once by ten to the
 number of its fraction digits, and never through a `double`.
 
+A literal longer than the type's precision keeps its first 17 significant
+digits in `decimal64_t` and in `double` (`digits10 + 1`, or `max_digits10`
+where that is more): a later digit of the integer part multiplies the value
+by ten, and a later digit of the fraction is dropped. So `1.` followed by
+any number of zeros is exactly 1, and `1` followed by 400 zeros is an
+infinity. A long literal is within one unit in the last place of the
+nearest `decimal64_t`, and within a few of the nearest `double`, whose
+digits round as they are read. A fraction keeps its value down to the
+type's smallest subnormal, and is 0 below it.
+
 An integral power is computed by repeated squaring, in the number type's
 own multiplications, for exactness and determinism: every product is exact
 while it fits the type's precision, so `43 + 12 + 2 * (44 - 12) ^ 4` is

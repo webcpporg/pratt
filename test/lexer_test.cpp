@@ -13,10 +13,13 @@
 #include <boost/core/lightweight_test.hpp>
 #include <boost/decimal.hpp>
 
+#include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "require.hpp"
@@ -244,34 +247,78 @@ bool is_infinite(const Number& x) {
     return isinf(x);
 }
 
-/** Whether `x` is NaN, by the two-step call that finds boost::decimal's isnan or std's. */
+/**
+ Digits past the ones the lexer keeps change nothing in a fraction: `1.` and four hundred zeros is
+ exactly 1.
+*/
 template <class Number>
-bool is_nan(const Number& x) {
-    using std::isnan;
-    return isnan(x);
+void digits_past_the_precision_do_not_change_a_fraction() {
+    BOOST_TEST(number_of<Number>("1." + std::string(400, '0')) == Number(1));
+    BOOST_TEST(number_of<Number>("0.5" + std::string(400, '0')) == Number(1) / Number(2));
+}
+
+/** Integer digits past the precision scale the value up: `1` and four hundred zeros is infinite. */
+template <class Number>
+void integer_digits_past_the_precision_scale_it_up() {
+    BOOST_TEST(is_infinite(number_of<Number>("1" + std::string(400, '0'))));
+    BOOST_TEST(number_of<Number>("1" + std::string(30, '0')) ==
+               number_of<Number>("1000000000000000") * number_of<Number>("1000000000000000"));
 }
 
 /**
- Past the type's range, a literal lexes as infinity, 0 or NaN, at the digit counts the lexer's
- Doc Comment states.
-
- Tip: `digits` is the first count of digits ten to which overflows the type, 309 in double and
- 385 in decimal64_t. An integer part of that many digits after a 1 is infinite, and one digit
- fewer is not; a fraction of that many digits makes the divisor infinite, so a mantissa of 1
- lexes as 0, while that many ones overflow the mantissa too, and lex as NaN.
+ A fraction of four hundred zeros and a 1 is 0, the nearest value to 1e-401 in both types: the
+ smallest positive double is about 4.9e-324, and the smallest positive decimal64_t 1e-398.
 */
 template <class Number>
-void a_number_past_the_range_is_infinite_zero_or_nan(std::size_t digits) {
-    const std::string at_range = "1" + std::string(digits - 1, '0');
-    BOOST_TEST(!is_infinite(number_of<Number>(at_range)));
-    BOOST_TEST(is_infinite(number_of<Number>(at_range + "0")));
+void a_fraction_below_the_smallest_value_is_zero() {
+    BOOST_TEST(number_of<Number>("0." + std::string(400, '0') + "1") == Number(0));
+}
 
-    const std::string tiny = "0." + std::string(digits - 2, '0') + "1";
-    BOOST_TEST(number_of<Number>(tiny) != Number(0));
-    BOOST_TEST(number_of<Number>("0." + std::string(digits - 1, '0') + "1") == Number(0));
+/** The value of `text` as std::from_chars reads it into a double. */
+double double_from_chars(std::string_view text) {
+    double value = 0;
+    const std::from_chars_result read =
+        std::from_chars(text.data(), text.data() + text.size(), value);
+    require(BOOST_TEST(read.ec == std::errc{}));
+    return value;
+}
 
-    BOOST_TEST(number_of<Number>("0." + std::string(digits, '1')) == Number(0));
-    BOOST_TEST(is_nan(number_of<Number>("0." + std::string(digits + 1, '1'))));
+/** The value of `text` as Boost.Decimal's from_chars reads it into a decimal64_t. */
+decimal64_t decimal_from_chars(std::string_view text) {
+    decimal64_t value{0};
+    const auto read = boost::decimal::from_chars(text.data(), text.data() + text.size(), value);
+    require(BOOST_TEST(read.ec == std::errc{}));
+    return value;
+}
+
+/** The thirty-digit integer of the two tests below. */
+constexpr std::string_view thirty_digits = "123456789012345678901234567890";
+
+/** A literal of thirty digits is within one unit in the last place of the nearest double. */
+void a_long_integer_is_within_one_ulp_in_double() {
+    const double nearest = double_from_chars(thirty_digits);
+    const auto got = number_of<double>(thirty_digits);
+    BOOST_TEST(got >= std::nextafter(nearest, 0.0));
+    BOOST_TEST(got <= std::nextafter(nearest, std::numeric_limits<double>::infinity()));
+}
+
+/** A literal of thirty digits is within one unit in the last place of the nearest decimal64_t. */
+void a_long_integer_is_within_one_ulp_in_decimal() {
+    using boost::decimal::nextafter;
+    const decimal64_t nearest = decimal_from_chars(thirty_digits);
+    const auto got = number_of<decimal64_t>(thirty_digits);
+    BOOST_TEST(got >= nextafter(nearest, decimal64_t(0)));
+    BOOST_TEST(got <= nextafter(nearest, std::numeric_limits<decimal64_t>::infinity()));
+}
+
+/**
+ A fraction whose value is a subnormal lexes to it, though ten to the number of its digits is
+ infinite: 1e-321 in double, 1e-391 in decimal64_t.
+*/
+void a_subnormal_fraction_lexes_to_its_value() {
+    const std::string binary = "0." + std::string(320, '0') + "1";
+    BOOST_TEST_EQ(number_of<double>(binary), double_from_chars(binary));
+    BOOST_TEST(number_of<decimal64_t>("0." + std::string(390, '0') + "1") == decimal64_t(1, -391));
 }
 
 template <class Number>
@@ -331,6 +378,9 @@ void every_case() {
     the_end_token_stays<Number>();
     peek_does_not_consume<Number>();
     a_text_points_into_the_source<Number>();
+    digits_past_the_precision_do_not_change_a_fraction<Number>();
+    integer_digits_past_the_precision_scale_it_up<Number>();
+    a_fraction_below_the_smallest_value_is_zero<Number>();
 }
 
 }  // namespace
@@ -340,7 +390,8 @@ int main() {
     every_case<double>();
     a_decimal_fraction_is_exact_in_decimal();
     a_double_fraction_is_the_nearest_double();
-    a_number_past_the_range_is_infinite_zero_or_nan<decimal64_t>(385);
-    a_number_past_the_range_is_infinite_zero_or_nan<double>(309);
+    a_long_integer_is_within_one_ulp_in_double();
+    a_long_integer_is_within_one_ulp_in_decimal();
+    a_subnormal_fraction_lexes_to_its_value();
     return boost::report_errors();
 }

@@ -18,6 +18,7 @@
 
 #include <boost/decimal.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <concepts>
@@ -248,6 +249,120 @@ constexpr bool is_whitespace(char c) noexcept {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 
+/**
+ Ten to the power `n`, by repeated squaring in `Number`: exact while it fits
+ the type's precision, and infinite past its range.
+*/
+template <number Number>
+Number ten_to(std::size_t n) {
+    Number result(1);
+    Number base(10);
+    while (n != 0) {
+        if (n % 2 != 0) {
+            result = result * base;
+        }
+        n /= 2;
+        if (n != 0) {
+            base = base * base;
+        }
+    }
+    return result;
+}
+
+/**
+ The value of a number literal, read one digit at a time.
+
+ Tip: the first `digits10 + 1` significant digits make an integer mantissa,
+ one digit more than the type holds exactly, or `max_digits10` digits where
+ that is more, as in a binary type, so the mantissa rounds only near its
+ end, and never overflows. A later digit of the integer part only scales
+ the value up by ten, and a later digit of the fraction is below the type's
+ precision, and is dropped. A type without `std::numeric_limits` keeps every
+ digit. The multiplication by ten and the addition of a digit are two
+ statements, so that no compiler contracts them into one fused
+ multiply-add, which would round differently from one target to another.
+*/
+template <number Number>
+class literal_value {
+public:
+    /** Reads `digit`, the next digit of the integer part. */
+    void integer_digit(int digit) {
+        if (kept_ == 0 && digit == 0) {
+            return;
+        }
+        if (kept_ == kept_digits) {
+            ++scale_up_;
+            return;
+        }
+        keep(digit);
+    }
+
+    /** Reads `digit`, the next digit of the fraction. */
+    void fraction_digit(int digit) {
+        if (kept_ == kept_digits) {
+            return;
+        }
+        ++scale_down_;
+        if (kept_ == 0 && digit == 0) {
+            return;
+        }
+        keep(digit);
+    }
+
+    /**
+     The literal's value: the mantissa scaled up, or divided by ten to the
+     number of its fraction digits.
+
+     Tip: where that power of ten is infinite but the value is not, a
+     subnormal, the division is made in steps of the largest finite power.
+    */
+    [[nodiscard]] Number value() const {
+        if (scale_down_ == 0) {
+            return Number(mantissa_ * ten_to<Number>(scale_up_));
+        }
+        Number value = mantissa_;
+        std::size_t remaining = scale_down_;
+        if (remaining > largest_power) {
+            const auto step = ten_to<Number>(largest_power);
+            while (remaining > largest_power && value != Number(0)) {
+                value = value / step;
+                remaining -= largest_power;
+            }
+        }
+        return Number(value / ten_to<Number>(remaining));
+    }
+
+private:
+    using limits = std::numeric_limits<Number>;
+
+    /**
+     How many significant digits the mantissa keeps: `digits10 + 1`, or
+     `max_digits10` where that is more, as in a binary type.
+    */
+    static constexpr std::size_t kept_digits =
+        limits::is_specialized && limits::digits10 >= 0
+            ? std::max(static_cast<std::size_t>(limits::digits10) + 1,
+                       static_cast<std::size_t>(limits::max_digits10))
+            : std::numeric_limits<std::size_t>::max();
+
+    /** The largest power of ten that is finite in `Number`, at least 1. */
+    static constexpr std::size_t largest_power =
+        limits::is_specialized && limits::max_exponent10 > 0
+            ? static_cast<std::size_t>(limits::max_exponent10)
+            : std::numeric_limits<std::size_t>::max();
+
+    void keep(int digit) {
+        mantissa_ = mantissa_ * Number(10);
+        mantissa_ = mantissa_ + Number(digit);
+        ++kept_;
+    }
+
+    Number mantissa_{0};
+    std::size_t kept_ = 0;
+    std::size_t scale_up_ = 0;
+    std::size_t scale_down_ = 0;
+};
+
 }  // namespace detail
 
 /**
@@ -263,15 +378,21 @@ constexpr bool is_whitespace(char c) noexcept {
  other character is a token of kind @ref kind::invalid, one character long,
  which the grammar rejects where it stands.
 
- A number's digits, read as one integer, are exact while they fit the
- type's precision, and round past it, until they overflow the type. An
- integer part above the type's largest value, which has 309 digits in
- `double` and 385 in `decimal64_t`, lexes as infinity. A fraction of 309
- digits or more in `double`, or 385 in `decimal64_t`, makes ten to their
- number infinite, so the literal lexes as 0, or as NaN when its digits,
- read as one integer, are infinite too. A non-ASCII character is a token of kind
- @ref kind::invalid per byte, so the parse stops at its first byte with
- @ref error::invalid_character.
+ A number keeps its first `digits10 + 1` significant digits, or
+ `max_digits10` where that is more, 17 in both `decimal64_t` and `double`,
+ as one integer, divided once by ten to the number of its fraction digits.
+ A later digit of the integer part multiplies the value by ten, and a later
+ digit of the fraction is dropped. So a literal of at most `digits10`
+ significant digits, with at most 22 fraction digits in `double`, is the
+ nearest value; a longer one is within one unit in the last place of it in
+ `decimal64_t`, and may be a few units away in `double`, whose digits
+ round as they are read. `1.` followed by any number of zeros is exactly
+ 1; `1` followed by 400 zeros is infinite; and a fraction keeps its value
+ down to the type's smallest subnormal, and is 0 below it. A type without
+ `std::numeric_limits` keeps every digit.
+
+ A non-ASCII character is a token of kind @ref kind::invalid per byte, so
+ the parse stops at its first byte with @ref error::invalid_character.
 
  @tparam Number The type a number token's value is.
  @see "The calculator", in the guide.
@@ -341,42 +462,22 @@ private:
         }
     }
 
-    /**
-     Lexes a number at the position, which is a digit.
-
-     Tip: the fraction's digits continue the mantissa, which is then divided
-     once by ten to the number of those digits. While the mantissa and the
-     divisor are exact in `Number`, that division is the one rounding, so a
-     decimal type gets the exact value and `double` the nearest one, the
-     literal's; a division by ten per digit would round once per digit.
-    */
+    /** Lexes a number at the position, which is a digit. */
     token_type lex_number() {
         const std::size_t start = pos_;
-        Number mantissa(0);
-        read_digits(mantissa);
+        detail::literal_value<Number> literal;
+        for (; pos_ < source_.size() && detail::is_digit(source_[pos_]); ++pos_) {
+            literal.integer_digit(source_[pos_] - '0');
+        }
         const bool has_fraction = pos_ + 1 < source_.size() && source_[pos_] == '.' &&
                                   detail::is_digit(source_[pos_ + 1]);
-        if (!has_fraction) {
-            return number_token(start, mantissa);
-        }
-        ++pos_;
-        const Number scale = read_digits(mantissa);
-        return number_token(start, Number(mantissa / scale));
-    }
-
-    /**
-     Appends the digits at the position to `mantissa` and returns ten to the
-     number of them.
-    */
-    Number read_digits(Number& mantissa) {
-        const Number ten(10);
-        Number scale(1);
-        while (pos_ < source_.size() && detail::is_digit(source_[pos_])) {
-            mantissa = (mantissa * ten) + Number(source_[pos_] - '0');
-            scale = scale * ten;
+        if (has_fraction) {
             ++pos_;
+            for (; pos_ < source_.size() && detail::is_digit(source_[pos_]); ++pos_) {
+                literal.fraction_digit(source_[pos_] - '0');
+            }
         }
-        return scale;
+        return number_token(start, literal.value());
     }
 
     /** The number token of `value`, whose text runs from `start` to the position. */
