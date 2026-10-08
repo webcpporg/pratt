@@ -7,6 +7,8 @@
 /**
  The errors a Pratt parse reports, as `boost::system::error_code` values of a
  category of its own, and the result type of every operation that can fail.
+
+ @see "Errors", in the guide.
 */
 #ifndef WEBCPP_PRATT_ERRORS_HPP
 #define WEBCPP_PRATT_ERRORS_HPP
@@ -27,8 +29,13 @@ namespace webcpp::pratt {
  The errors pratt reports, as `boost::system::error_code` values of the
  category @ref error_category.
 
- The values start at 1 and are fixed: they are never reused for a different
- meaning, so a stored value keeps its meaning across versions.
+ The values start at 1, so an `error_code` of value 0 is no error. An
+ `error` converts to an `error_code` and compares with one:
+ `parsed.error() == pratt::error::trailing_input`.
+
+ @note The values are fixed: they are never reused for a different meaning,
+ so a stored value keeps its meaning across versions.
+ @see "Errors", in the guide.
 */
 enum class error : int {
     /** A token appears where the grammar's `nud` or `led` has none for it. */
@@ -61,8 +68,10 @@ enum class error : int {
 
 namespace detail {
 
-/** The human message of an @ref error value, or the unknown message for a value it does not define.
- */
+/**
+ The human message of an @ref error value, or the unknown message for a
+ value it does not define.
+*/
 inline const char* message_of(int value) noexcept {
     switch (static_cast<error>(value)) {
         case error::unexpected_token: return "unexpected token";
@@ -120,10 +129,11 @@ inline constexpr category the_category{};
  The category of every @ref error.
 
  Its `name()` is "webcpp.pratt", and its `message(value)` the human message
- of the table in the specification, or the unknown message for a value
- @ref error does not define.
+ of the error, "division by zero" for @ref error::division_by_zero, or
+ "unknown webcpp.pratt error" for a value @ref error does not define.
 
  @return The category, a constant with a fixed identity.
+ @see "Errors", in the guide.
 */
 inline const boost::system::error_category& error_category() noexcept {
     return detail::the_category;
@@ -144,9 +154,13 @@ inline boost::system::error_code make_error_code(error e) noexcept {
  failure.
 
  It is Boost.System's `result`. pratt throws nothing of its own: every
- operation of it that can fail returns one.
+ operation of it that can fail returns one, and so does every nud and led of
+ a grammar. Its error is an @ref error, or an error of any category that a
+ grammar or an environment of the user's returns, which pratt passes on
+ unchanged.
 
  @tparam T The type of the value; `void` for an operation that returns none.
+ @see "Errors", in the guide.
 */
 template <class T>
 using result = boost::system::result<T>;

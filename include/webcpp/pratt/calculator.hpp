@@ -8,6 +8,8 @@
  The calculator: a grammar of numbers, variables and C's arithmetic and
  comparison operators on the engine, over any type that models
  @ref webcpp::pratt::calc::number, `boost::decimal::decimal64_t` by default.
+
+ @see "The calculator", in the guide.
 */
 #ifndef WEBCPP_PRATT_CALCULATOR_HPP
 #define WEBCPP_PRATT_CALCULATOR_HPP
@@ -34,8 +36,14 @@ namespace detail::math {
 
 // The two-step call: a number type's own overload, found by ADL (boost::decimal's), or std's for
 // a builtin type, as `using std::pow; pow(a, b);` finds it.
+
+/** std's `fmod`, which the two-step call finds for a builtin type. */
 using std::fmod;
+
+/** std's `pow`, which the two-step call finds for a builtin type. */
 using std::pow;
+
+/** std's `trunc`, which the two-step call finds for a builtin type. */
 using std::trunc;
 
 /** `pow(a, b)`, as the two-step call finds it. */
@@ -67,9 +75,13 @@ auto adl_trunc(const N& a) -> decltype(trunc(a)) {
  using std::trunc;`, so `boost::decimal`'s overloads serve its types and
  std's serve the builtin floating-point types.
 
- @note The three functions must return `N` itself, so that the calculator
+ @tparam N The type the calculator would compute in.
+ @note The three functions must return exactly `N`, so that the calculator
  never computes through another type. `int` does not model it: std's
- `pow`, `fmod` and `trunc` of an `int` return a `double`.
+ `pow`, `fmod` and `trunc` of an `int` return a `double`. Nor does a type
+ whose functions return a proxy, an expression template such as
+ Boost.Multiprecision's with `et_on`; the same type with `et_off` does.
+ @see "The calculator", in the guide.
 */
 template <class N>
 concept number =
@@ -90,29 +102,77 @@ concept number =
         { detail::math::adl_trunc(a) } -> std::same_as<N>;
     };
 
-/** What a token is. */
+/**
+ What a token is.
+
+ @see "The calculator", in the guide.
+*/
 enum class kind {
+    /** A number literal, such as `42` or `0.5`, whose value the token holds. */
     number,
+
+    /** A variable's name, such as `x` or `_total2`. */
     name,
+
+    /** `+`, binary addition or a unary plus. */
     plus,
+
+    /** `-`, binary subtraction or a unary minus. */
     minus,
+
+    /** `*`, multiplication. */
     star,
+
+    /** `/`, division. */
     slash,
+
+    /** `%`, the remainder of a division. */
     percent,
+
+    /** `^`, exponentiation. */
     caret,
+
+    /** `(`, which opens a grouping. */
     lparen,
+
+    /** `)`, which closes a grouping. */
     rparen,
+
+    /** `=`, assignment. */
     assign,
+
+    /** `==`, equal. */
     eq,
+
+    /** `!=`, not equal. */
     ne,
+
+    /** `<`, less than. */
     lt,
+
+    /** `<=`, less than or equal. */
     le,
+
+    /** `>`, greater than. */
     gt,
+
+    /** `>=`, greater than or equal. */
     ge,
+
+    /** `++`, a prefix or a postfix increment. */
     increment,
+
+    /** `--`, a prefix or a postfix decrement. */
     decrement,
-    /** A character no token starts with, one character long. */
+
+    /**
+     A character no token starts with, one character long.
+
+     A non-ASCII character is several bytes of UTF-8, each a token of this
+     kind, so a parse stops at its first byte.
+    */
     invalid,
+
     /** The end of the input, which an empty text at the end of the source spells. */
     end,
 };
@@ -138,7 +198,10 @@ namespace detail {
 
 /** An operator spelled with two characters, and its kind. */
 struct two_character_operator {
+    /** The operator's two characters. */
     std::string_view text;
+
+    /** The operator's kind. */
     kind k;
 };
 
@@ -170,14 +233,17 @@ constexpr kind one_character_kind(char c) noexcept {
     }
 }
 
+/** Whether `c` is an ASCII decimal digit. */
 constexpr bool is_digit(char c) noexcept {
     return c >= '0' && c <= '9';
 }
 
+/** Whether `c` may start a name: an ASCII letter or `_`. */
 constexpr bool is_name_start(char c) noexcept {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
+/** Whether `c` separates tokens: space, tab, carriage return or line feed. */
 constexpr bool is_whitespace(char c) noexcept {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
@@ -196,7 +262,16 @@ constexpr bool is_whitespace(char c) noexcept {
  other character is a token of kind @ref kind::invalid, one character long,
  which the grammar rejects where it stands.
 
+ A number's digits are exact while the mantissa fits the type's precision,
+ and each further digit rounds. A fraction of hundreds of digits makes ten
+ to their number overflow the type, past about 308 digits in `double` and
+ 384 in `decimal64_t`, and the literal lexes as 0, or as NaN when its
+ mantissa overflows too. A non-ASCII character is a token of kind
+ @ref kind::invalid per byte, so the parse stops at its first byte with
+ @ref error::invalid_character.
+
  @tparam Number The type a number token's value is.
+ @see "The calculator", in the guide.
 */
 template <number Number>
 class stream {
@@ -205,15 +280,25 @@ public:
     using token_type = token<Number>;
 
     /**
-     Constructs the stream of `source`, which must outlive it and its
-     tokens, and lexes the first token.
+     Constructs the stream of `source`, and lexes the first token.
+
+     @param source The text to lex.
+     @pre `source` outlives the stream and its tokens, whose text views it.
     */
     explicit stream(std::string_view source) : source_(source), next_(lex()) {}
 
-    /** The next token, not consumed; the end token once the input is spent. */
+    /**
+     The next token, not consumed; the end token once the input is spent.
+
+     @return The token, valid until the next @ref advance.
+    */
     [[nodiscard]] const token_type& peek() const { return next_; }
 
-    /** Consumes the next token and returns it; at the end, returns the end token again. */
+    /**
+     Consumes the next token and returns it; at the end, returns the end token again.
+
+     @return The token consumed.
+    */
     token_type advance() {
         token_type current = next_;
         if (current.k == kind::end) {
@@ -223,7 +308,11 @@ public:
         return current;
     }
 
-    /** Whether the input is spent: the next token is the end token. */
+    /**
+     Whether the input is spent: the next token is the end token.
+
+     @return `true` once only the end token remains.
+    */
     [[nodiscard]] bool at_end() const { return next_.k == kind::end; }
 
 private:
@@ -342,6 +431,7 @@ private:
  name is an error only where it is read.
 
  @tparam Number The type the calculator computes in.
+ @see "The calculator", in the guide.
 */
 template <number Number>
 struct node {
@@ -365,6 +455,8 @@ struct node {
  so an environment that keeps it copies it.
 
  @tparam E The environment's type, whose `number_type` models @ref number.
+ @see "The calculator", in the guide.
+ @see "Allocation", in the guide.
 */
 template <class E>
 concept environment_for = requires(E e, const E ce, std::string_view n, E::number_type v) {
@@ -376,6 +468,13 @@ concept environment_for = requires(E e, const E ce, std::string_view n, E::numbe
 /**
  The calculator's own environment: a `std::map` from names to values,
  whose map and keys allocate through the user's allocator.
+
+ It allocates in @ref assign alone, when a name is new: the map's node, and
+ the key's characters when the name is longer than the string's small
+ buffer, both through `Allocator`. Assigning a name it holds replaces the
+ value in place, and @ref lookup allocates nothing. Nothing else that
+ @ref evaluate does allocates, so this environment's allocator is the
+ calculator's only source of memory.
 
  The key is a `std::basic_string` whose allocator is `Allocator` rebound to
  `char`, and the map's allocator is `Allocator` rebound to the map's value
@@ -390,6 +489,7 @@ concept environment_for = requires(E e, const E ce, std::string_view n, E::numbe
  type: `std::allocator` rebinds to `std::allocator<char>`, whose key is
  `std::string`, so the default names its own map, and depends only on
  `Number`.
+ @see "Allocation", in the guide.
 */
 template <number Number = boost::decimal::decimal64_t,
           class Allocator = std::allocator<std::pair<const std::string, Number>>>
@@ -549,14 +649,21 @@ result<Number> power(const Number& base, const Number& exponent) {
  so an integer power is exact while it fits the type's precision, and a
  negative one is `1 / x^|n|`; only a non-integral exponent calls `pow`.
 
- The tokens are read one at a time, and the first error in reading order is
- the one returned: `=` checks its target before it reads its right operand,
- so `5 = 3 $` gives @ref error::invalid_assignment_target. A write made
- before the error stays made: `i++ $` increments `i`, then gives
- @ref error::invalid_character.
+ The tokens are read one at a time, and the first error found in reading
+ order is the one returned. A token's error is found when the token is read, and an
+ operator's when the operator has its operands: `=` checks its target before
+ it reads its right operand, so `5 = 3 $` gives
+ @ref error::invalid_assignment_target, while `+` finds an undefined operand
+ or `/` a zero divisor only after its right operand is read, so `x + 1 $`
+ gives @ref error::invalid_character even when `x` is undefined.
+
+ A write made before the error stays made: nothing is undone. `i++ $`
+ increments `i`, then gives @ref error::invalid_character, and `i++ )`
+ increments it, then gives @ref error::trailing_input.
 
  @tparam Environment The environment the grammar reads and writes, which
  must outlive the grammar.
+ @see "The calculator", in the guide.
 */
 template <environment_for Environment>
 class grammar {
@@ -605,7 +712,8 @@ public:
     /**
      Constructs the grammar over `env`.
 
-     @param env The environment, which must outlive the grammar.
+     @param env The environment.
+     @pre `env` outlives the grammar.
     */
     explicit grammar(Environment& env) : env_(&env) {}
 
@@ -644,6 +752,7 @@ public:
     /**
      The meaning of the token `t` at the start of an expression.
 
+     @tparam Parser The parser's type, a @ref webcpp::pratt::parser of this grammar.
      @param p The parser.
      @param t The token.
      @return The node: a number, a variable, a grouping, a unary sign, or a
@@ -687,6 +796,7 @@ public:
     /**
      The meaning of the token `t` after the expression `left`.
 
+     @tparam Parser The parser's type, a @ref webcpp::pratt::parser of this grammar.
      @param p The parser.
      @param t The token.
      @param left The expression on its left.
@@ -849,14 +959,24 @@ private:
  Nothing is allocated but what `env` allocates to store a name: the lexer,
  the tokens and the nodes are views and numbers.
 
+ The first error found in reading order is the one returned, and the writes
+ made before it stay made, as @ref grammar says: a failed evaluation may have
+ assigned variables in `env`. A caller that needs all or nothing evaluates
+ in a copy of the environment and keeps the copy on success.
+
+ @tparam Environment The environment's type, which models
+ @ref environment_for.
  @param source The expression, which needs to live only for the call.
  @param env The environment.
  @param max_depth The deepest nesting of the engine's expression calls
- allowed.
+ allowed, as @ref webcpp::pratt::parser takes it: a negative value behaves
+ as 0.
  @return The expression's value; the first error of the parse, an error of
  @ref error, or the error `env.assign` returned; or
  @ref error::undefined_variable when the whole expression is a name the
  environment does not hold.
+ @see "The calculator", in the guide.
+ @see "Errors", in the guide.
 */
 template <environment_for Environment>
 result<typename Environment::number_type> evaluate(std::string_view source, Environment& env,

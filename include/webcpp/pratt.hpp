@@ -7,6 +7,8 @@
 /**
  The engine: include this one header to use pratt's parser without its
  calculator. The calculator is included by name, `<webcpp/pratt/calculator.hpp>`.
+
+ @see "Introduction", in the guide.
 */
 #ifndef WEBCPP_PRATT_HPP
 #define WEBCPP_PRATT_HPP

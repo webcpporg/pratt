@@ -7,6 +7,8 @@
 /**
  The engine: a Pratt parser that knows no operator. Every token is given its
  meaning by a grammar, through the token's nud, led and lbp.
+
+ @see "Writing a grammar", in the guide.
 */
 #ifndef WEBCPP_PRATT_PARSER_HPP
 #define WEBCPP_PRATT_PARSER_HPP
@@ -38,6 +40,10 @@ namespace webcpp::pratt {
  stack with it (`-Wl,-z,stack-size=` on wasm, the thread's stack natively):
  in a debug build on wasm, a level of `^` costs 862 bytes and a level of
  grouping 336, plus at most about 4.5 KiB that a parse needs at any depth.
+
+ @note The limit bounds the recursion through @ref parser::expression
+ alone, as @ref parser says.
+ @see "Limits", in the guide.
 */
 inline constexpr int default_max_depth = 32;
 
@@ -45,8 +51,15 @@ inline constexpr int default_max_depth = 32;
  A source of tokens: the next one is read by `peek` and consumed by
  `advance`, and `at_end` says whether the input is spent.
 
+ The parser reads `peek` to decide whether the next token extends an
+ expression, calls `advance` once for each token it hands a nud or a led,
+ and asks `at_end` once the whole expression is parsed. A stream may lex
+ lazily, one token ahead, as @ref calc::stream does.
+
+ @tparam S The stream's type, which names its tokens `token_type`.
  @note `peek` must stay valid at the end of the input, returning a token
  whose lbp is 0 and whose nud fails, such as an end token.
+ @see "Writing a grammar", in the guide.
 */
 template <class S>
 concept token_stream = requires(S s, const S cs) {
@@ -65,7 +78,15 @@ class parser;
  its lbp (how tightly it binds that left operand).
 
  The node a parse builds is the grammar's `node_type`, which the library
- never looks into.
+ never looks into. A nud and a led receive the parser, so that they parse
+ their operands through @ref parser::expression or the helpers, and return
+ the node or an error. A led is called only for a token whose lbp is greater
+ than the binding power the expression is parsed with, so a token of lbp 0,
+ such as an end token or a closing parenthesis, always ends an expression.
+
+ @tparam G The grammar's type, which names its node `node_type`.
+ @tparam S The type of the token stream, which models @ref token_stream.
+ @see "Writing a grammar", in the guide.
 */
 template <class G, class S>
 concept grammar_for = token_stream<S> &&
@@ -89,9 +110,16 @@ public:
     /** Uncounts the call, on whichever path it returns. */
     ~depth_guard() { --depth_; }
 
+    /** Refused: a copy would uncount the call a second time. */
     depth_guard(const depth_guard&) = delete;
+
+    /** Refused: the guard counts one call for as long as it lives. */
     depth_guard& operator=(const depth_guard&) = delete;
+
+    /** Refused: a moved-from guard would still uncount the call. */
     depth_guard(depth_guard&&) = delete;
+
+    /** Refused: the guard counts one call for as long as it lives. */
     depth_guard& operator=(depth_guard&&) = delete;
 
 private:
@@ -106,8 +134,17 @@ private:
  It holds a pointer to the grammar, the stream and the depth of its active
  @ref expression calls, and allocates nothing.
 
+ Its depth limit, `max_depth`, bounds the recursion through @ref expression
+ alone. That is the whole recursion of a grammar whose nud and led parse
+ every operand through @ref expression or the helpers, as the calculator's
+ do. A nud or a led that recurses through functions of its own grammar,
+ without calling @ref expression, is not bounded by it, and must bound that
+ recursion itself.
+
  @tparam Grammar A type that models @ref grammar_for of `Stream`.
  @tparam Stream A type that models @ref token_stream.
+ @see "Writing a grammar", in the guide.
+ @see "Limits", in the guide.
 */
 template <class Grammar, class Stream>
 class parser {
@@ -119,11 +156,14 @@ public:
     using node_type = Grammar::node_type;
 
     /**
-     Constructs a parser of `stream` by `grammar`, which must outlive it.
+     Constructs a parser of `stream` by `grammar`.
 
      @param grammar The grammar.
      @param stream The tokens.
      @param max_depth The deepest nesting of @ref expression calls allowed.
+     A negative value behaves as 0, which refuses every parse with
+     @ref error::nesting_too_deep.
+     @pre `grammar` outlives the parser.
     */
     parser(const Grammar& grammar, Stream stream, int max_depth = default_max_depth)
         : grammar_(&grammar), stream_(std::move(stream)), max_depth_(max_depth) {}
@@ -186,10 +226,18 @@ public:
         return node;
     }
 
-    /** The next token, not consumed: for a nud or a led that reads past its own token. */
+    /**
+     The next token, not consumed: for a nud or a led that reads past its own token.
+
+     @return What the stream's `peek` returns.
+    */
     [[nodiscard]] decltype(auto) peek() const { return stream_.peek(); }
 
-    /** Consumes the next token and returns it: for a nud or a led that reads past its own token. */
+    /**
+     Consumes the next token and returns it: for a nud or a led that reads past its own token.
+
+     @return The token consumed.
+    */
     token_type advance() { return stream_.advance(); }
 
 private:
@@ -202,10 +250,14 @@ private:
 /**
  Parses the whole of `stream` as one expression of `grammar`.
 
+ @tparam Grammar A type that models @ref grammar_for of `Stream`.
+ @tparam Stream A type that models @ref token_stream.
  @param grammar The grammar.
  @param stream The tokens.
- @param max_depth The deepest nesting of @ref parser::expression calls allowed.
+ @param max_depth The deepest nesting of @ref parser::expression calls
+ allowed, as @ref parser takes it: a negative value behaves as 0.
  @return As @ref parser::parse returns.
+ @see "Writing a grammar", in the guide.
 */
 template <class Grammar, token_stream Stream>
     requires grammar_for<Grammar, Stream>
@@ -223,6 +275,8 @@ result<typename Grammar::node_type> parse(const Grammar& grammar, Stream stream,
 /**
  The nud of an atom: the token is the whole expression.
 
+ @tparam Make A callable of `const Token&`.
+ @tparam Token The token's type.
  @param make Builds the node of `token`, as a `result`.
  @param token The atom.
  @return What `make` returns.
@@ -235,6 +289,8 @@ auto literal(Make make, const Token& token) -> decltype(make(token)) {
 /**
  The nud of a prefix operator, whose operand binds with power `bp`.
 
+ @tparam Parser The parser's type, a @ref parser.
+ @tparam Make A callable of the operand's node.
  @param p The parser.
  @param bp The power the operand binds with.
  @param make Builds the node of the operator from its operand's, as a `result`.
@@ -253,6 +309,9 @@ result<typename Parser::node_type> prefix(Parser& p, int bp, Make make) {
 /**
  The led of a left-associative infix operator of power `bp`.
 
+ @tparam Parser The parser's type, a @ref parser.
+ @tparam Node The node's type, the parser's `node_type`.
+ @tparam Make A callable of the two operands' nodes.
  @param p The parser.
  @param bp The operator's power.
  @param left The left operand's node.
@@ -275,6 +334,9 @@ result<typename Parser::node_type> infix_left(Parser& p, int bp, Node left, Make
  The right operand is parsed one step weaker, `bp - 1`, so that an equal
  operator on the right takes it.
 
+ @tparam Parser The parser's type, a @ref parser.
+ @tparam Node The node's type, the parser's `node_type`.
+ @tparam Make A callable of the two operands' nodes.
  @param p The parser.
  @param bp The operator's power.
  @param left The left operand's node.
@@ -294,6 +356,8 @@ result<typename Parser::node_type> infix_right(Parser& p, int bp, Node left, Mak
 /**
  The led of a postfix operator: its operand is the whole left expression.
 
+ @tparam Node The node's type, the parser's `node_type`.
+ @tparam Make A callable of the operand's node.
  @param left The operand's node.
  @param make Builds the node of the operator from its operand's, as a `result`.
  @return What `make` returns.
@@ -307,6 +371,8 @@ auto postfix(Node left, Make make) -> decltype(make(std::move(left))) {
  The nud of an opening token: a whole inner expression, then the closing
  token that `is_close` accepts.
 
+ @tparam Parser The parser's type, a @ref parser.
+ @tparam IsClose A predicate of the parser's `token_type`.
  @param p The parser.
  @param is_close Whether a token is the closing one.
  @return The inner expression's node, its error, or
