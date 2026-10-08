@@ -43,14 +43,14 @@ namespace {
 /** A token a source is expected to lex to. */
 template <class Number>
 struct expected_token {
-    calc::kind k{};
+    calc::kind type{};
     std::string_view text{};
     Number value{};
 };
 
 /** The name of a kind, so that a failure prints what was lexed. */
-std::string_view name_of(calc::kind k) {
-    switch (k) {
+std::string_view name_of(calc::kind type) {
+    switch (type) {
         case calc::kind::number: return "number";
         case calc::kind::name: return "name";
         case calc::kind::plus: return "plus";
@@ -85,16 +85,16 @@ template <class Number>
 void lexes_to(std::string_view source, const std::vector<expected_token<Number>>& tokens) {
     calc::stream<Number> lexer(source);
     for (const expected_token<Number>& want : tokens) {
-        BOOST_TEST_EQ(name_of(lexer.peek().k), name_of(want.k));
+        BOOST_TEST_EQ(name_of(lexer.peek().type), name_of(want.type));
         BOOST_TEST(!lexer.at_end());
         const calc::token<Number> got = lexer.advance();
-        BOOST_TEST_EQ(name_of(got.k), name_of(want.k));
+        BOOST_TEST_EQ(name_of(got.type), name_of(want.type));
         BOOST_TEST_EQ(got.text, want.text);
         BOOST_TEST(got.value == want.value);
     }
     BOOST_TEST(lexer.at_end());
     const calc::token<Number> end = lexer.advance();
-    BOOST_TEST_EQ(name_of(end.k), "end");
+    BOOST_TEST_EQ(name_of(end.type), "end");
     BOOST_TEST(end.text.empty());
     BOOST_TEST(end.value == Number(0));
 }
@@ -104,7 +104,7 @@ template <class Number>
 Number number_of(std::string_view source) {
     calc::stream<Number> lexer(source);
     const calc::token<Number> token = lexer.advance();
-    require(BOOST_TEST_EQ(name_of(token.k), "number"));
+    require(BOOST_TEST_EQ(name_of(token.type), "number"));
     BOOST_TEST_EQ(token.text, source);
     BOOST_TEST(lexer.at_end());
     return token.value;
@@ -340,8 +340,8 @@ void the_end_token_stays() {
     BOOST_TEST(lexer.advance().value == Number(7));
     for (int i = 0; i < 3; ++i) {
         BOOST_TEST(lexer.at_end());
-        BOOST_TEST_EQ(name_of(lexer.peek().k), "end");
-        BOOST_TEST_EQ(name_of(lexer.advance().k), "end");
+        BOOST_TEST_EQ(name_of(lexer.peek().type), "end");
+        BOOST_TEST_EQ(name_of(lexer.advance().type), "end");
     }
     BOOST_TEST(lexer.at_end());
 }

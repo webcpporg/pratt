@@ -186,7 +186,7 @@ enum class kind {
 template <number Number>
 struct token {
     /** What the token is. */
-    kind k = kind::end;
+    kind type = kind::end;
 
     /** The value of a number token; 0 for every other kind. */
     Number value{0};
@@ -203,17 +203,17 @@ struct two_character_operator {
     std::string_view text;
 
     /** The operator's kind. */
-    kind k;
+    kind type;
 };
 
 /** Every operator spelled with two characters, which the lexer tries before one character. */
 inline constexpr std::array two_character_operators{
-    two_character_operator{.text = "++", .k = kind::increment},
-    two_character_operator{.text = "--", .k = kind::decrement},
-    two_character_operator{.text = "==", .k = kind::eq},
-    two_character_operator{.text = "!=", .k = kind::ne},
-    two_character_operator{.text = "<=", .k = kind::le},
-    two_character_operator{.text = ">=", .k = kind::ge},
+    two_character_operator{.text = "++", .type = kind::increment},
+    two_character_operator{.text = "--", .type = kind::decrement},
+    two_character_operator{.text = "==", .type = kind::eq},
+    two_character_operator{.text = "!=", .type = kind::ne},
+    two_character_operator{.text = "<=", .type = kind::le},
+    two_character_operator{.text = ">=", .type = kind::ge},
 };
 
 /** The kind of the one-character operator `c`, or @ref kind::invalid when `c` is none. */
@@ -425,7 +425,7 @@ public:
     */
     token_type advance() {
         token_type current = next_;
-        if (current.k == kind::end) {
+        if (current.type == kind::end) {
             return current;
         }
         next_ = lex();
@@ -437,14 +437,14 @@ public:
 
      @return `true` once only the end token remains.
     */
-    [[nodiscard]] bool at_end() const { return next_.k == kind::end; }
+    [[nodiscard]] bool at_end() const { return next_.type == kind::end; }
 
 private:
     /** Lexes the token at the position, after the whitespace before it, and moves past it. */
     token_type lex() {
         skip_whitespace();
         if (pos_ >= source_.size()) {
-            return token_type{.k = kind::end, .value = Number(0), .text = source_.substr(pos_)};
+            return token_type{.type = kind::end, .value = Number(0), .text = source_.substr(pos_)};
         }
         const char c = source_[pos_];
         if (detail::is_digit(c)) {
@@ -483,7 +483,7 @@ private:
     /** The number token of `value`, whose text runs from `start` to the position. */
     [[nodiscard]] token_type number_token(std::size_t start, const Number& value) const {
         return token_type{
-            .k = kind::number,
+            .type = kind::number,
             .value = value,
             .text = source_.substr(start, pos_ - start),
         };
@@ -497,7 +497,7 @@ private:
             ++pos_;
         }
         return token_type{
-            .k = kind::name,
+            .type = kind::name,
             .value = Number(0),
             .text = source_.substr(start, pos_ - start),
         };
@@ -509,13 +509,13 @@ private:
         for (const detail::two_character_operator& candidate : detail::two_character_operators) {
             if (pair == candidate.text) {
                 pos_ += 2;
-                return token_type{.k = candidate.k, .value = Number(0), .text = pair};
+                return token_type{.type = candidate.type, .value = Number(0), .text = pair};
             }
         }
         const std::string_view one = source_.substr(pos_, 1);
         ++pos_;
         return token_type{
-            .k = detail::one_character_kind(one.front()),
+            .type = detail::one_character_kind(one.front()),
             .value = Number(0),
             .text = one,
         };
@@ -879,7 +879,7 @@ public:
      takes no left operand.
     */
     [[nodiscard]] int lbp(const token_type& t) const {
-        switch (t.k) {
+        switch (t.type) {
             case kind::assign: return assign_bp;
             case kind::eq:
             case kind::ne:
@@ -915,12 +915,12 @@ public:
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
     result<node_type> nud(Parser& p, const token_type& t) const {
-        switch (t.k) {
+        switch (t.type) {
             case kind::number:
                 return literal([](const token_type& n) { return value_node(n.value); }, t);
             case kind::name: return read(t.text);
             case kind::lparen:
-                return grouping(p, [](const token_type& n) { return n.k == kind::rparen; });
+                return grouping(p, [](const token_type& n) { return n.type == kind::rparen; });
             case kind::plus:
                 return prefix(p, unary_bp, [](const node_type& operand) -> result<node_type> {
                     if (!operand.has_value) {
@@ -937,7 +937,7 @@ public:
                 });
             case kind::increment:
             case kind::decrement: {
-                const number_type step(t.k == kind::increment ? 1 : -1);
+                const number_type step(t.type == kind::increment ? 1 : -1);
                 return prefix(p, unary_bp, [this, &step](const node_type& target) {
                     return step_before(target, step);
                 });
@@ -961,7 +961,7 @@ public:
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
     result<node_type> led(Parser& p, const token_type& t, const node_type& left) const {
-        switch (t.k) {
+        switch (t.type) {
             case kind::assign:
                 if (left.name.empty()) {
                     return error::invalid_assignment_target;
@@ -987,13 +987,14 @@ public:
             case kind::le:
             case kind::gt:
             case kind::ge:
-                return infix_left(p, compare_bp, left,
-                                  arithmetic([k = t.k](const number_type& a, const number_type& b) {
-                                      return compare(k, a, b);
-                                  }));
+                return infix_left(
+                    p, compare_bp, left,
+                    arithmetic([op = t.type](const number_type& a, const number_type& b) {
+                        return compare(op, a, b);
+                    }));
             case kind::increment:
             case kind::decrement: {
-                const number_type step(t.k == kind::increment ? 1 : -1);
+                const number_type step(t.type == kind::increment ? 1 : -1);
                 return postfix(left, [this, &step](const node_type& target) {
                     return step_after(target, step);
                 });
@@ -1020,10 +1021,10 @@ private:
         return number_type(a * b);
     }
 
-    /** The comparison `k` of `a` and `b`, as 1 or 0. */
-    static result<number_type> compare(kind k, const number_type& a, const number_type& b) {
+    /** The comparison `op` of `a` and `b`, as 1 or 0. */
+    static result<number_type> compare(kind op, const number_type& a, const number_type& b) {
         bool holds = false;
-        switch (k) {
+        switch (op) {
             case kind::eq: holds = a == b; break;
             case kind::ne: holds = a != b; break;
             case kind::lt: holds = a < b; break;

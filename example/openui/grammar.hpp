@@ -48,7 +48,7 @@ enum class kind {
 /** A token of the input. */
 struct token {
     /** What the token is. */
-    kind k = kind::end;
+    kind type = kind::end;
 
     /** The token's characters, a view into the source; a string's include its quotes. */
     std::string_view text{};
@@ -121,7 +121,7 @@ public:
     /** Consumes the next token and returns it; at the end, returns the end token again. */
     token advance() {
         const token current = next_;
-        if (current.k == kind::end) {
+        if (current.type == kind::end) {
             return current;
         }
         next_ = lex();
@@ -129,14 +129,14 @@ public:
     }
 
     /** Whether the input is spent: the next token is the end token. */
-    [[nodiscard]] bool at_end() const { return next_.k == kind::end; }
+    [[nodiscard]] bool at_end() const { return next_.type == kind::end; }
 
 private:
     /** Lexes the token at the position, after the whitespace before it, and moves past it. */
     token lex() {
         skip_whitespace();
         if (pos_ >= source_.size()) {
-            return token{.k = kind::end, .text = source_.substr(pos_)};
+            return token{.type = kind::end, .text = source_.substr(pos_)};
         }
         const char c = source_[pos_];
         if (detail::is_name_start(c)) {
@@ -152,7 +152,7 @@ private:
         }
         const std::size_t start = pos_;
         ++pos_;
-        return token{.k = detail::punctuation_kind(c), .text = source_.substr(start, 1)};
+        return token{.type = detail::punctuation_kind(c), .text = source_.substr(start, 1)};
     }
 
     void skip_whitespace() {
@@ -162,16 +162,16 @@ private:
     }
 
     /**
-     Lexes a token of kind `k`: the character at the position, and those after it `more` accepts.
+     Lexes a token of kind `type`: the character at the position, and those after it `more` accepts.
     */
     template <class More>
-    token lex_while(kind k, More more) {
+    token lex_while(kind type, More more) {
         const std::size_t start = pos_;
         ++pos_;
         while (pos_ < source_.size() && more(source_[pos_])) {
             ++pos_;
         }
-        return token{.k = k, .text = source_.substr(start, pos_ - start)};
+        return token{.type = type, .text = source_.substr(start, pos_ - start)};
     }
 
     /** Lexes a string at the position, which is a `"`, or the unterminated rest of the line. */
@@ -180,10 +180,10 @@ private:
         const std::size_t close = source_.find('"', start + 1);
         if (close == std::string_view::npos) {
             pos_ = source_.size();
-            return token{.k = kind::unterminated, .text = source_.substr(start)};
+            return token{.type = kind::unterminated, .text = source_.substr(start)};
         }
         pos_ = close + 1;
-        return token{.k = kind::string, .text = source_.substr(start, pos_ - start)};
+        return token{.type = kind::string, .text = source_.substr(start, pos_ - start)};
     }
 
     std::string_view source_;
@@ -232,7 +232,7 @@ struct grammar {
      takes no left operand.
     */
     [[nodiscard]] static int lbp(const token& t) {
-        switch (t.k) {
+        switch (t.type) {
             case kind::assign: return assign_bp;
             case kind::colon: return pair_bp;
             case kind::lparen: return call_bp;
@@ -256,7 +256,7 @@ struct grammar {
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<node_type> nud(Parser& p, const token& t) const {
-        switch (t.k) {
+        switch (t.type) {
             case kind::identifier:
             case kind::integer:
             case kind::string:
@@ -266,7 +266,8 @@ struct grammar {
                     },
                     t);
             case kind::lparen:
-                return pratt::grouping(p, [](const token& next) { return next.k == kind::rparen; });
+                return pratt::grouping(p,
+                                       [](const token& next) { return next.type == kind::rparen; });
             case kind::invalid: return pratt::error::invalid_character;
             case kind::unterminated:
             case kind::end: return pratt::error::unexpected_end;
@@ -287,7 +288,7 @@ struct grammar {
     // tag::led[]
     template <class Parser>
     pratt::result<node_type> led(Parser& p, const token& t, node_type left) const {
-        switch (t.k) {
+        switch (t.type) {
             case kind::assign:
                 return pratt::infix_right(p, assign_bp, std::move(left), detail::binary("="));
             case kind::colon:
@@ -315,7 +316,7 @@ private:
     template <class Parser>
     static pratt::result<node_type> call(Parser& p, node_type callee) {
         node_type node = "(call " + std::move(callee);
-        if (p.peek().k == kind::rparen) {
+        if (p.peek().type == kind::rparen) {
             p.advance();
             return std::move(node) + ")";
         }
@@ -326,7 +327,7 @@ private:
             }
             node += ' ';
             node += *argument;
-            const kind next = p.peek().k;
+            const kind next = p.peek().type;
             if (next == kind::rparen) {
                 p.advance();
                 return std::move(node) + ")";
