@@ -1,0 +1,163 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-openui]
+== The openui-lang micro-subset and the REPLs
+
+openui-lang is a language that describes a view as assignments of calls,
+such as `root = Stack()`. A micro-subset of it, among pratt's examples, is
+the seed of a future parser of openui-lang built on the engine: it proves
+that the engine parses its shape, calls with positional and named
+arguments, and assignments, with no recursive descent around it. Its
+grammar is `example/openui/grammar.hpp`, shared by a REPL and by a test.
+
+[#pratt-openui-grammar]
+=== The grammar
+
+The micro-subset has identifiers, integers, strings in double quotes
+without escapes, and `( ) , : =`. Its node is the S-expression of the
+parse, a `std::string`: `root = Stack(gap: 4)` is
+`(= root (call Stack (: gap 4)))`.
+
+[cols="1,1,2,1",options="header"]
+|===
+| Token | nud | led | lbp
+
+| identifier, integer
+| itself
+|
+| 0
+
+| string
+| itself, quoted
+|
+| 0
+
+| `(`
+| a grouping
+| a call, `+(call f a ...)+`
+| 90
+
+| `:`
+|
+| a pair `(: name value)`, left-associative
+| 20
+
+| `=`
+|
+| `(= target value)`, right-associative
+| 10
+|===
+
+`(` holds both of Pratt's denotations. At the start of an expression it is
+a grouping, the helper's; after an expression, it calls what stands on its
+left, with the highest power, so `Stack(1, 2)(3)` calls the result of the
+first call. `,` and `)` have the power 0, so each ends the expression of an
+argument, and the led reads them itself:
+
+[source]
+----
+include::{examples}/openui/grammar.hpp[tag=led,indent=0]
+----
+
+The call's led reads its arguments in a loop, each one a whole expression
+of the engine's, until the `)`:
+
+[source]
+----
+include::{examples}/openui/grammar.hpp[tag=call,indent=0]
+----
+
+A character that is no token, and a `"` that the line does not close, are
+tokens of their own with the highest power, as in the calculator, so the
+engine reaches them wherever they stand: the first is
+`invalid_character`, the second `unexpected_end`. The node allocates, since
+it is a string; it is the examples' output format, and the parser of
+openui-lang to come defines a tree of its own, under the rule of
+<<pratt-allocation>>.
+
+[#pratt-openui-repls]
+=== The REPLs
+
+Two programs read lines from their standard input and answer each one:
+`openui_repl` parses it with the micro-subset's grammar and writes its
+S-expression, and `calculator_repl` evaluates it with the calculator, in one
+environment for the whole session. Both share one loop, in
+`example/repl.hpp`, which drops the carriage return of a line that ends in
+one, skips a line that is empty or holds only spaces, and ends at the line
+`exit`, exactly, or at the end of the input, with the status 0:
+
+[source]
+----
+include::{examples}/repl.hpp[tag=loop,indent=0]
+----
+
+`openui_repl` hands the loop its grammar's parse, and writes `error:`, a
+space and the error's message when a line fails:
+
+[source]
+----
+include::{examples}/openui_repl.cpp[tag=main,indent=0]
+----
+
+Its build feeds it `openui_repl.input`, a session whose tenth line ends in a
+carriage return and a line feed, whose eleventh holds only four spaces, and
+whose twelfth is `exit` and a space, a name to parse rather than the end:
+
+[listing]
+----
+include::{examples}/openui_repl.input[]
+----
+
+It prints, one line for each line it read, and stops at `exit`, before
+`ignored`:
+
+[listing]
+----
+include::{examples}/openui_repl.expected[]
+----
+
+`openui_repl_eof` is the same program on another input, whose lines end in
+a carriage return and a line feed, whose second line is empty, and whose
+last line, `Stack(a)`, has no line feed after it and no `exit`:
+
+[listing]
+----
+include::{examples}/openui_repl_eof.input[]
+----
+
+It reads that last line, then ends at the end of its input:
+
+[listing]
+----
+include::{examples}/openui_repl_eof.expected[]
+----
+
+`calculator_repl` keeps one `calc::environment<>` for the session, and
+writes each value in Boost.Decimal's shortest form:
+
+[source]
+----
+include::{examples}/calculator_repl.cpp[tag=main,indent=0]
+----
+
+Its session, `calculator_repl.input`, holds the values and the errors of
+<<pratt-calculator>>, a division by zero, and, just before `exit`, a line
+of ten thousand `(` and a `1`, left out here:
+
+[listing]
+----
+include::{examples}/calculator_repl.input[lines=1..29;31..33]
+----
+
+It prints, the line of ten thousand `(` answering
+`error: expression nested too deeply` instead of overflowing the stack
+(<<pratt-limits>>):
+
+[listing]
+----
+include::{examples}/calculator_repl.expected[]
+----

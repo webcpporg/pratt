@@ -1,0 +1,83 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-errors]
+== Errors
+
+pratt reports every failure as a value, and throws nothing of its own. Every
+operation that can fail, every nud and every led returns a
+`pratt::result<T>`, which is Boost.System's `result`: a `T`, or the
+`boost::system::error_code` of the failure. pratt's own errors are the
+enumerators of `pratt::error`, in a category of their own,
+`pratt::error_category()`, whose name is `webcpp.pratt`. An `error` converts
+to an `error_code` and compares with one, so a program checks a failure as
+`parsed.error() == pratt::error::trailing_input`, and writes it with
+`parsed.error().message()`.
+
+[cols="3,1,3,5",options="header"]
+|===
+| Enumerator | Value | Message | When
+
+| `unexpected_token`
+| 1
+| unexpected token
+| A token stands where the grammar has no nud or led for it: `)` where an
+  operand is due, `= 3` in the micro-subset.
+
+| `unexpected_end`
+| 2
+| unexpected end of input
+| The input ends where a token was still due: `1 +`; an unclosed string
+  of the micro-subset.
+
+| `expected_closing_token`
+| 3
+| expected closing token
+| A grouping, or a call of the micro-subset, misses its `)`: `(1 + 2`.
+
+| `trailing_input`
+| 4
+| trailing input after expression
+| Tokens remain after a whole expression: `1 2`. `parse` returns it.
+
+| `invalid_assignment_target`
+| 5
+| invalid assignment target
+| `=`, `{plus}{plus}` or `--` of the calculator on what is not a variable:
+  `5 = 3`, `3{plus}{plus}`, `(1) = 2`.
+
+| `undefined_variable`
+| 6
+| undefined variable
+| The calculator reads a variable that the environment does not hold.
+
+| `invalid_character`
+| 7
+| invalid character
+| A character that starts no token: `1 $ 2`, or `!` without `=` in the
+  calculator.
+
+| `nesting_too_deep`
+| 8
+| expression nested too deeply
+| A parse would nest deeper than its `max_depth` (<<pratt-limits>>).
+
+| `division_by_zero`
+| 9
+| division by zero
+| The calculator's `/` or `%` by zero, or `0 ^ -1`.
+|===
+
+The values are fixed: a value is never reused for another meaning, so a
+value stored or sent keeps its meaning from one version of pratt to the
+next, and 0 is no error.
+
+The engine and its helpers produce `nesting_too_deep`, `trailing_input` and
+`expected_closing_token` themselves; every other error is a grammar's
+choice, and the enumerators are there for a grammar to use, as the
+calculator and the micro-subset do. A grammar, or an environment of the
+calculator, may return an error of its own category instead, and pratt
+passes it on unchanged, as <<pratt-calculator-environment>> shows.

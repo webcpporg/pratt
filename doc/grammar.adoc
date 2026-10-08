@@ -1,0 +1,183 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-grammar]
+== Writing a grammar
+
+A parse takes two things of the program's: a token stream, which gives the
+tokens, and a grammar, which gives them their meaning. Each is a type that
+models a concept of the engine, checked when the program compiles, with no
+base class, no virtual function and no type erasure between them and the
+engine. What a parse builds is the grammar's node, which the engine never
+looks into.
+
+[#pratt-grammar-stream]
+=== The token stream
+
+A type models `pratt::token_stream` when it names its tokens `token_type`
+and has three functions:
+
+* `peek()`, which returns the next token without consuming it;
+* `advance()`, which consumes the next token and returns it;
+* `at_end()`, which says whether the input is spent.
+
+The parser reads `peek` to decide whether the next token extends an
+expression, calls `advance` once for each token it hands a nud or a led, and
+asks `at_end` once a whole expression is parsed. `peek` must stay valid at
+the end of the input, and return there a token whose lbp is 0 and whose nud
+fails: `'\0'` in the first grammar, an end token in the calculator.
+
+A stream may hold every token in advance, or lex each one as it is asked
+for. The `characters` of <<pratt-introduction-first,the first grammar>> is
+the simplest of them, and the calculator's lexer, `calc::stream`, is lazy: it
+holds the source, its position and one token of lookahead, and no vector of
+tokens exists. The parser holds the stream by value, and moves it in.
+
+[#pratt-grammar-concept]
+=== The grammar
+
+A type `G` models `pratt::grammar_for<G, S>`, a grammar of the tokens of a
+stream `S`, when it names its node `node_type` and has three functions of a
+token `t`:
+
+* `lbp(t)`, its left binding power, an `int`;
+* `nud(p, t)`, its meaning at the start of an expression;
+* `led(p, t, left)`, its meaning after the expression `left`, which the
+  engine moves in.
+
+`nud` and `led` receive the parser, `p`, through which they parse their
+operands, and return a `pratt::result<node_type>`: the node, or an error.
+They are usually templates of the parser's type, which names the grammar and
+the stream. The engine calls a led only for a token whose lbp is greater
+than the binding power the expression is parsed with, so a token of lbp 0
+never reaches its led when the whole input is parsed with 0.
+
+The parser's `expression(rbp)` is what a nud or a led calls for an operand,
+and two more functions serve one that reads past its own token: `p.peek()`
+and `p.advance()`, the stream's. The grammar of
+<<pratt-openui,the openui-lang micro-subset>> reads the arguments of a call
+with them.
+
+[#pratt-grammar-node]
+=== The node
+
+The node is whatever the grammar builds. The first grammar's is an `int`,
+the value, computed while the parse goes; the grammar of the helpers below
+builds a string, the S-expression of the parse; the calculator's node is a
+value and the name of a variable, so that `=` knows what it writes
+(<<pratt-calculator>>). A program that keeps a tree makes the node a tree of
+its own. The engine moves nodes, and does nothing else with them.
+
+[#pratt-grammar-helpers]
+=== The helpers
+
+Most operators come in a few kinds, and the engine writes each kind once, as
+a function a nud or a led returns. Each takes the parser and a binding
+power, parses its operands through `expression`, and calls a function of the
+grammar's, `make`, which builds the node from the operands' nodes:
+
+[cols="2,1,4",options="header"]
+|===
+| Helper | Is a | What it parses
+
+| `literal(make, token)`
+| nud
+| Nothing more: the token is the whole expression, a number or a name.
+
+| `prefix(p, bp, make)`
+| nud
+| One operand, after the token, parsed with `bp`: a sign, a negation.
+
+| `infix_left(p, bp, left, make)`
+| led
+| The right operand, parsed with `bp`, so an operator of the same power
+  ends it: left-associative, `1-2-3` is `(1-2)-3`.
+
+| `infix_right(p, bp, left, make)`
+| led
+| The right operand, parsed with `bp - 1`, so an operator of the same power
+  extends it: right-associative, `+2^3^2+` is `+2^(3^2)+`.
+
+| `postfix(left, make)`
+| led
+| Nothing more: the left expression is the whole operand, as of a factorial.
+
+| `grouping(p, is_close)`
+| nud
+| A whole expression, parsed with 0, then the closing token that
+  `is_close` accepts, or the error `expected_closing_token`.
+|===
+
+This grammar is written with all six, and its node is the S-expression of
+the parse, `(+ 1 (* 2 3))`, so that its output shows how each line grouped.
+Its tokens are characters, as in the first grammar. Its binding powers put
+the sign below `^`, and the postfix `!` above everything:
+
+[source]
+----
+include::{examples}/pratt_helpers.cpp[tag=powers,indent=0]
+----
+
+Its nud makes a digit a literal, `-` a prefix operator and `(` a grouping.
+`unary` and `binary` are two functions of the program that return the
+`make` of a node of one operand and of two:
+
+[source]
+----
+include::{examples}/pratt_helpers.cpp[tag=nud,indent=0]
+----
+
+Its led makes `+ - * /` left-associative, `^` right-associative, and `!`
+postfix. Only those tokens have an lbp above 0, so no other token reaches
+the led:
+
+[source]
+----
+include::{examples}/pratt_helpers.cpp[tag=led,indent=0]
+----
+
+[source]
+----
+include::{examples}/pratt_helpers.cpp[tag=main,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_helpers.expected[]
+----
+
+`-2^2` negates the power, since the sign asks for its operand with 30 and
+`^` binds with 40: the sign's operand is `2^2`. `-3!` takes the factorial
+first for the same reason, and `2*-3` shows the same `-` as a nud where a
+led stood before it. A grouping parses `1+2` with 0, so the `{plus}` inside it
+binds whatever the power of what is outside, and a missing `)` is
+`expected_closing_token`. A `)` where an operand is due has no nud, and is an
+unexpected token.
+
+Every helper recurses through `expression` alone, so a grammar written with
+them routes every token through its nud and its led, and the parser's depth
+limit bounds its whole recursion (<<pratt-limits>>).
+
+[#pratt-grammar-parse]
+=== Parsing
+
+`pratt::parse(grammar, stream)` parses the whole of a stream as one
+expression, with the power 0, and returns a `pratt::result` of the grammar's
+node: the node, the first error a nud or a led returned, or
+`trailing_input` when tokens remain after a whole expression. A third
+argument, `max_depth`, bounds the recursion (<<pratt-limits>>).
+
+The class it uses is `pratt::parser<Grammar, Stream>`, which a program can
+construct itself, to call `expression` with another power, or to go on
+reading the stream after one expression. It holds a pointer to the grammar,
+so the grammar must outlive it, and a temporary grammar does not compile
+there; `parse` takes one, since its parser lives only for the call.
+
+An error is whatever a nud or a led returned, passed on unchanged: one of
+pratt's (<<pratt-errors>>), or an error code of the program's own category,
+which the engine never reads.

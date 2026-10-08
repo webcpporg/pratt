@@ -12,6 +12,9 @@
 
 #include "openui/repl.hpp"
 
+// tag::main[]
 int main() {
     return webcpp::example::openui::repl(std::cin, std::cout);
 }
+
+// end::main[]

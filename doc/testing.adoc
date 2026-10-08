@@ -1,0 +1,208 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-testing]
+== Testing
+
+A test of a grammar checks that each input gives the node it should, and
+each wrong input the error it should. In pratt both are values, a
+`pratt::result` of the node or of the error, and nothing in a parse depends
+on the world outside the test: no clock, no thread, no global state, and no
+exception to catch. A parse of the same input by the same grammar gives the
+same result every time.
+
+[#pratt-testing-grammar]
+=== Testing a grammar
+
+The test below checks the grammar of the openui-lang micro-subset
+(<<pratt-openui>>), with
+https://www.boost.org/doc/libs/release/libs/core/doc/html/core/lightweight_test.html[Boost.Core's lightweight_test],
+the framework of one header that pratt's own tests use. It includes the
+engine, the framework and the grammar:
+
+[source]
+----
+include::{examples}/pratt_testing.cpp[tag=includes,indent=0]
+----
+
+A helper parses one line, with the default depth limit unless the test
+names another:
+
+[source]
+----
+include::{examples}/pratt_testing.cpp[tag=helper,indent=0]
+----
+
+A test of trees compares the node of each line with the S-expression it
+should be: how `=` and calls group.
+
+[source]
+----
+include::{examples}/pratt_testing.cpp[tag=trees,indent=0]
+----
+
+A test of errors compares the error of each wrong line with an enumerator
+of `pratt::error`, and checks the depth limit on both of its sides, with a
+limit small enough to write the input by hand:
+
+[source]
+----
+include::{examples}/pratt_testing.cpp[tag=errors,indent=0]
+----
+
+`main` calls the cases and returns `boost::report_errors()`, the program's
+status:
+
+[source]
+----
+include::{examples}/pratt_testing.cpp[tag=main,indent=0]
+----
+
+When every check holds, the program prints `No errors detected.` on its
+standard error, nothing on its standard output, and returns 0. A check that
+fails prints its expression, its values, its file and its line on the
+standard error, and `main` returns 1. `.value()` of a result that holds an
+error throws, or, built without exceptions, calls
+`boost::throw_exception`, which ends the program: the test stops there
+rather than compare a node that is not there.
+
+[#pratt-testing-library]
+=== How pratt is tested
+
+pratt's tests are lightweight_test programs, one per subject, under `test/`,
+each declared in `test/Jamfile` with webcpp's `webcpp.run`:
+
+[cols="1,3",options="header"]
+|===
+| Test | What it checks
+
+| `errors`
+| The values of `pratt::error`, which are fixed, the category's name and
+  messages, and the conversion and the comparison with an `error_code`.
+
+| `engine`
+| The engine with a grammar of the test's own, whose binding powers come
+  from a table: precedence, associativity, prefix and postfix positions,
+  the errors the engine and its helpers report, the order of the nud and
+  led calls, the depth limit at its default, one level beyond and at a
+  custom value, and what models `token_stream` and `grammar_for`.
+
+| `sexpr`
+| The engine through a grammar whose tokens are characters and whose nodes
+  are strings, with nothing of the calculator.
+
+| `lexer`
+| The calculator's `number` concept and its lazy lexer, over `decimal64_t`
+  and `double`: the kinds, texts and values of the tokens, numbers built in
+  the number type's own arithmetic and past its range, the invalid token,
+  whitespace, and the end token that stays.
+
+| `calculator`
+| The calculator over `decimal64_t` and `double`: values and errors, exact
+  integral powers, division by zero, assignment and increment through
+  parentheses, an invalid character wherever it stands, the first error in
+  reading order, and the environments a user brings, one in fixed storage
+  whose `assign` fails and one whose allocator counts.
+
+| `allocation`
+| The global `operator new`, replaced for this program alone: no call
+  across a session over an environment in fixed storage, and over
+  `calc::environment` only those of its allocator.
+
+| `depth`
+| The default depth limit with the calculator's own frames: a grouping, a
+  chain of signs and a chain of `+^+` exactly `default_max_depth` deep are
+  evaluated and one level more is refused, twice the default still fits
+  the stack, and a line of ten thousand `(` is refused. On wasip2 and
+  wasip3, in a debug build with wasm's default stack, it is the check of
+  the measurement of <<pratt-limits>>.
+
+| `openui`
+| The openui-lang micro-subset, through the grammar it shares with its
+  REPL: every line of its session, `(` as a grouping and as a call, the
+  right-associative `=`, and the errors of its lazy lexer.
+|===
+
+Each case is a function named after the rule it checks, such as
+`a_decimal_fraction_is_exact_in_decimal`, and `main` calls them all and
+returns `boost::report_errors()`. Beside them, `test/Jamfile` compiles each
+public header alone, as the only include of its translation unit, so that a
+header that leans on an include it does not make fails, naming it. The
+lint checks the boundary that `meta/include-boundaries.json` declares: the
+engine's headers include neither the calculator nor Boost.Decimal, since the
+engine knows no grammar and no number type. And `example/Jamfile` builds
+every program this page shows, runs it with the `.input` beside it as its
+standard input when there is one, and compares what it printed with the
+`.expected` beside it; a program that returns anything but 0 fails too.
+
+[#pratt-testing-targets]
+=== Targets
+
+`test/Jamfile` and `example/Jamfile` declare the targets they are built for,
+`webcpp.targets native wasip2 wasip3`, and b2 builds each program for those
+alone:
+
+[cols="1,3",options="header"]
+|===
+| Target | How it is built and run
+
+| native
+| Any toolset that is not one of the two below, Clang and GCC among them.
+  With exceptions, unless its user asks for `exception-handling=off`,
+  which links webcpp's `tools/throw_exception.cpp`, as on wasip2.
+
+| wasip2
+| The toolset `clang-wasip2`, the Clang of wasi-sdk for wasm32-wasip2, run
+  by wasmtime. Without exceptions: with `BOOST_NO_EXCEPTIONS` and
+  `tools/throw_exception.cpp`. This is the build that proves pratt works
+  without exceptions.
+
+| wasip3
+| The toolset `clang-wasip3`, for wasm32-wasip3, run by wasmtime. With
+  exceptions, as WebAssembly's exception handling.
+|===
+
+From the root of a webcpp checkout, each of these builds and runs, natively:
+
+`b2 libs/pratt/test`::
+The {n-tests-native} tests: the lightweight_test programs, and each of the
+{n-headers} public headers compiled alone.
+
+`b2 libs/pratt/example`::
+The {n-examples} examples, each built, run, and its output compared with the
+one beside it.
+
+`b2 libs/pratt/test libs/pratt/example toolset=clang-wasip2 testing.launcher=wasmtime`::
+The same for wasm32-wasip2, without exceptions: {n-tests-wasip2} tests and
+{n-examples-wasip2} examples, each run by wasmtime. `toolset=clang-wasip3`
+does the same for wasm32-wasip3, with exceptions: {n-tests-wasip3} tests
+and {n-examples-wasip3} examples.
+
+The WASI toolsets are b2's `clang`, which a `user-config.jam` registers
+against wasi-sdk, as
+link:{webcpp-libs}/xactor/{webcpp-page}#xactor-testing-targets[xactor's page]
+shows. b2 compares timestamps, so a result that counts is built from
+scratch, with `b2 -a`. `b2 libs/pratt/test//calculator` builds and runs one
+test alone, while working on it.
+
+[#pratt-testing-report]
+=== The test matrix
+
+The continuous integration runs pratt's tests and examples in lanes, one
+toolset each: the native compilers, and wasip2 and wasip3. Each lane builds
+from scratch and records what b2 built and ran:
+
+[source,bash]
+----
+b2 -a --dump-tests --out-xml=<lane>.xml toolset=<toolset> libs/pratt/test libs/pratt/example
+----
+
+webcpp's `tools/report/report.py` merges the files of every lane into a
+matrix: a page of the libraries by lanes, and a page of each library's tests
+and examples by lanes, where each cell says whether that program passed in
+that lane, or how it failed, at compile time, at link time or when it ran.
+The matrix is published with the documentation, at
+https://webcpporg.github.io/webcpp/report/.

@@ -34,6 +34,7 @@ namespace webcpp::example {
  @param process_line What a non-blank line does with its text and `out`.
  @return 0, the program's status, at `exit` or at the end of `in`.
 */
+// tag::loop[]
 template <class ProcessLine>
 int repl(std::istream& in, std::ostream& out, ProcessLine process_line) {
     std::string line;
@@ -51,6 +52,8 @@ int repl(std::istream& in, std::ostream& out, ProcessLine process_line) {
     }
     return 0;
 }
+
+// end::loop[]
 
 }  // namespace webcpp::example
 

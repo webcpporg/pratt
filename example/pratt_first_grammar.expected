@@ -1,0 +1,7 @@
+1+2*3 -> 7
+2*3+4 -> 10
+8-2-1 -> 5
+-2*3 -> -6
+1+ -> error: unexpected end of input
+1+*2 -> error: unexpected token
+12 -> error: trailing input after expression

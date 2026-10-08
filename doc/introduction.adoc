@@ -1,0 +1,160 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-introduction]
+== Introduction
+
+A parser turns text into structure: `1 + 2 * 3` into an addition whose right
+operand is a product. Pratt parsing, or top-down operator precedence, after
+Vaughan Pratt's paper of 1973, does it with one loop and one question asked
+of every token: what it means at the start of an expression, what it means
+after one, and how tightly it holds what stands on its left. Precedence and
+associativity become numbers, and a new operator is a new answer to that
+question, not a new rule of a grammar.
+
+pratt is that loop, and nothing else: an engine that knows no token, no
+operator and no tree. A program gives it a token stream and a grammar, and
+the engine calls the grammar for each token it reads. The grammar decides
+what a parse builds, a value computed on the way, a tree, or a string, and
+every failure comes back as a value. Beside the engine, pratt ships a
+calculator built on it, `calc`, which computes exactly in decimal by default
+(<<pratt-calculator>>).
+
+[#pratt-introduction-nud-led]
+=== nud, led and lbp
+
+Pratt names the three answers of a token:
+
+* *nud*, its null denotation: what it means with nothing on its left. A
+  digit is a number, `-` is the negation of what follows it, `(` opens a
+  grouping.
+* *led*, its left denotation: what it means after a complete expression,
+  which becomes its left operand. `-` is a subtraction there, and `+*+` a
+  product.
+* *lbp*, its left binding power: how tightly it binds that left operand. A
+  token of power 0, such as the end of the input or a closing parenthesis,
+  takes no left operand, and ends an expression.
+
+The engine's whole algorithm is one function, `expression(rbp)`. It reads a
+token and calls its nud; then, as long as the next token's lbp is greater
+than `rbp`, it reads that token and calls its led with what it has parsed so
+far. A nud or a led that needs an operand calls `expression` again, with the
+binding power of its own operator, so the recursion stops at the first
+operator that binds less tightly. A `+*+` that asks for its right operand with
+its power, 20, stops before a `{plus}` of power 10, which then takes the product
+as its left operand: precedence is that comparison of two numbers.
+
+One token can have both denotations, as `-` has, and its nud and its led
+are two functions that never meet. That is what makes Pratt parsing fit the
+languages people write, where the same character is a sign, an operator, a
+grouping or a call, depending on where it stands.
+
+[#pratt-introduction-first]
+=== A first grammar
+
+This program parses integers of one digit with a unary minus and the
+binary `{plus}`, `-` and `+*+`, and computes their values while it parses.
+It begins with the engine's header and an alias for its namespace:
+
+[source]
+----
+include::{examples}/pratt_first_grammar.cpp[tag=includes,indent=0]
+----
+
+The engine reads tokens from a token stream: here, the characters of a text,
+each one a token, with `'\0'` once the text is spent. `peek` shows the next
+token, `advance` consumes it, and `at_end` says whether anything is left:
+
+[source]
+----
+include::{examples}/pratt_first_grammar.cpp[tag=stream,indent=0]
+----
+
+The grammar answers the three questions. Its `node_type`, what a parse
+builds, is `int`, since this grammar computes as it goes. `lbp` gives
+`{plus}` and `-` the power 10 and `+*+` the power 20. The nud of a digit
+is its value, and the nud of `-` asks the parser for an operand with the
+power 30, above every binary operator, so that the minus takes only the
+next number. The led of a binary operator asks for the right operand with
+the operator's own power, then combines the two:
+
+[source]
+----
+include::{examples}/pratt_first_grammar.cpp[tag=grammar,indent=0]
+----
+
+`pratt::parse` parses a whole input with a grammar, and returns a
+`pratt::result<int>`, the value or the error:
+
+[source]
+----
+include::{examples}/pratt_first_grammar.cpp[tag=main,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_first_grammar.expected[]
+----
+
+`1+2*3` and `2*3+4` both multiply first, whatever their order, since
+`+*+` binds more tightly than `{plus}`. `8-2-1` is 5, `(8-2)-1`, because the
+led of the first `-` asks for its right operand with the power 10, and the
+second `-`, of the same power, is not greater, so it ends that operand and
+takes `8-2` as its own left one: an operator that asks with its own power
+is left-associative. `-2*3` negates only the 2, as the minus asks with 30.
+The last three fail, each with an error of pratt's: the input ends where an
+operand was due, a `+*+` stands where no nud has a meaning for it, and the
+`2` of `12`, a second number with no operator before it, is input left
+over after a whole expression.
+
+[#pratt-requirements]
+=== Requirements
+
+* *A {cpp}20 compiler.* pratt's tests and examples are built and run
+  natively, with Clang and GCC, and for wasm32-wasip2 and wasm32-wasip3 with
+  the Clang of wasi-sdk, under wasmtime (<<pratt-testing>>).
+* *Boost's headers, 1.92 or newer.* The engine uses Boost.System, for
+  `result` and the error codes, and the calculator Boost.Decimal, for its
+  default number type. pratt is header-only, and nothing of Boost is
+  compiled for it.
+* *Exceptions are the program's choice.* pratt throws nothing of its own,
+  and no header of it throws, tries or catches, so the same headers serve a
+  build with exceptions and one without. webcpp builds pratt without
+  exceptions on wasm32-wasip2 alone, which proves it there, since some
+  WebAssembly hosts lack exception handling; everywhere else, whether a
+  program uses them is up to whoever builds it. A program without
+  exceptions defines `boost::throw_exception`, which Boost.System's `result`
+  names, as
+  link:{webcpp-libs}/xactor/{webcpp-page}#xactor-quick-start-build[xactor's page]
+  shows.
+* *RTTI is never restricted.* Every target, wasm32-wasip2 included, is
+  built with it, and pratt asks no program to turn it off.
+* *Nothing else:* no threads, no clock, no global or static mutable state,
+  and no allocation in the engine (<<pratt-allocation>>).
+
+[#pratt-reading]
+=== Reading this page
+
+`<webcpp/pratt.hpp>` includes the engine, `<webcpp/pratt/errors.hpp>` and
+`<webcpp/pratt/parser.hpp>`, whose names are in the namespace
+`webcpp::pratt`. The calculator, `<webcpp/pratt/calculator.hpp>`, is
+included by its own name, so that a program of the engine alone does not
+read Boost.Decimal; its names are in `webcpp::pratt::calc`. The code of this
+page writes them `pratt::parse` and `calc::evaluate`, as after
+`namespace pratt = webcpp::pratt;` and `namespace calc = webcpp::pratt::calc;`.
+
+<<pratt-grammar>> takes the parts a program writes: the token stream, the
+grammar, the node, and the helpers that write the usual kinds of operator.
+<<pratt-calculator>> shows the calculator, its number types and its
+environments, and <<pratt-openui>> a grammar with calls, the seed of a
+parser of openui-lang, with the two programs that read lines and answer
+them. <<pratt-errors>> lists every error, <<pratt-limits>> the depth limit
+and the stack it protects, and <<pratt-allocation>> what allocates and
+through which allocator. <<pratt-testing>> shows how a program tests its
+grammar, and how pratt itself is tested. The <<reference,reference>> closes
+the page.

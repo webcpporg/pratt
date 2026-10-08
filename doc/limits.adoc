@@ -1,0 +1,119 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-limits]
+== Limits
+
+Pratt parsing recurses: each operand that a nud or a led asks for is a call
+of `expression`, below the calls of the nud and the led that asked, so every
+level of nesting in the input costs stack. A line of ten thousand `(` would
+nest ten thousand calls, and overflow the stack: a crash, not an error.
+
+[#pratt-limits-depth]
+=== The depth limit
+
+The parser counts its active `expression` calls, and refuses the call that
+would make them more than its limit, `max_depth`, with `nesting_too_deep`,
+before it reads a token. So the stack never grows past what the limit
+allows, and the input that would have overflowed it is an error like any
+other. `max_depth` is an argument of the parser's constructor, of `parse`
+and of `calc::evaluate`, and its default is `pratt::default_max_depth`,
+which is 32. A negative `max_depth` behaves as 0, which refuses every parse.
+
+A `1` inside a number of parentheses is that number plus one calls deep:
+
+[source]
+----
+include::{examples}/pratt_depth.cpp[tag=depth,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_depth.expected[]
+----
+
+The limit bounds the recursion through `expression` alone. That is the
+whole recursion of a grammar whose nuds and leds parse every operand through
+`expression` or the helpers, as the calculator's and the micro-subset's do,
+the micro-subset's argument loop included. A nud or a led that recurses
+through functions of its own, without calling `expression`, is not bounded
+by it, and bounds that recursion itself.
+
+[#pratt-limits-stack]
+=== The stack each level costs
+
+The default is measured, not chosen. The measurement is the deepest nesting
+that the calculator evaluated without a trap, over `calc::environment<>`,
+with wasi-sdk 34 (clang 23.1.0) and wasmtime 47.0.3, and the stack divided
+by that depth, for three shapes of N operators or `(`. It was taken on
+wasm's default stack of 64{nbsp}KiB, in a debug build (`-O0 -fno-inline`) on
+wasip2 and wasip3, and in a build with `-O2` on wasip2; natively in a debug
+build, on a stack of 8{nbsp}MiB:
+
+[cols="2,2,2,2",options="header"]
+|===
+| Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8{nbsp}MiB
+
+| `+((...(1)...))+`
+| 188 (349 B)
+| 338 (194 B)
+| 15367 (545 B)
+
+| `+- - ... - 1+`
+| 179 (366 B)
+| 338 (194 B)
+| 15367 (545 B)
+
+| `+2 ^ 2 ^ ... ^ 2+`
+| 71 (923 B)
+| 270 (243 B)
+| 7256 (1154 B)
+|===
+
+The shape that costs the most is a chain of `+^+`, since each power is
+computed in a frame of its own on the way back up. The default is the
+largest power of two at most half the deepest debug parse that wasm's
+default stack holds: half of 71 is 35, hence 32. A parse at the default
+depth uses at most half the stack, in the worst shape and the slowest
+build, on every target pratt is tested on; a build with `-O2` and a native
+stack hold far more.
+
+In a debug build on wasm, a level of `+^+` costs 862 bytes and a level of
+grouping 336, plus at most about 4.5{nbsp}KiB that a parse needs at any depth.
+
+[#pratt-limits-raising]
+=== Raising the limit
+
+A program that raises the limit raises its stack with it, by the cost of a
+level times the levels it adds. On wasm, the stack is set when the program
+is linked, with the linker's flag `-Wl,-z,stack-size=` and the size in
+bytes. A program that evaluates chains of `+^+` 1024 deep in a debug build
+needs about 1024 times 862 bytes and 4.5{nbsp}KiB, under 1{nbsp}MiB, so it links
+with a stack of 1{nbsp}MiB:
+
+[source,bash]
+----
+clang++ --target=wasm32-wasip2 -std=c++20 -Wl,-z,stack-size=1048576 program.cpp -o program.wasm
+----
+
+and passes `max_depth` to every call:
+`calc::evaluate(line, env, 1024)`. A b2 project adds the flag to its
+target's requirements:
+
+[listing]
+----
+<linkflags>-Wl,-z,stack-size=1048576
+----
+
+Natively, the stack is the thread's. The main thread's is the system's,
+commonly 8{nbsp}MiB on Linux and macOS (`ulimit -s` shows it), and a thread a
+program creates takes the size it is created with, through
+`pthread_attr_setstacksize` or Boost.Thread's
+`boost::thread::attributes::set_stack_size`. The measurement above holds
+7256 levels of `+^+` on 8{nbsp}MiB in a debug build, so a native program has
+room for a limit far above the default without changing its stack.

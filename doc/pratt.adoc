@@ -1,0 +1,54 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+= pratt: Pratt parsing for {cpp}
+:toc: left
+:toclevels: 1
+:idprefix:
+:sectanchors:
+:example-caption!:
+:attribute-missing: warn
+
+pratt is a header-only engine for Pratt parsing, top-down operator
+precedence, in {cpp}20, one of the libraries of
+https://github.com/webcpporg/webcpp[webcpp]. It knows no token, no operator
+and no tree: a program gives it a stream of tokens and a grammar that says
+what each token means, and gets back the grammar's node or an error, as a
+value. A calculator built on the engine comes with it, exact in decimal by
+default.
+
+This page teaches pratt concept by concept: why each exists, its smallest
+example, its variations and its rules. Every program it shows was compiled
+and run, natively and for wasm32-wasip2 and wasm32-wasip3, and printed the
+output shown under it. The <<reference,reference>> that closes it lists
+every name the headers declare.
+
+include::introduction.adoc[]
+
+include::grammar.adoc[]
+
+include::calculator.adoc[]
+
+include::openui.adoc[]
+
+include::errors.adoc[]
+
+include::limits.adoc[]
+
+include::allocation.adoc[]
+
+include::testing.adoc[]
+
+[#reference]
+== Reference
+
+Every name pratt declares, in the namespaces `webcpp::pratt` and
+`webcpp::pratt::calc`, from the Doc Comments of its headers: each concept,
+class, function, type and enumerator with its declaration, what it does,
+what it asks of its caller and how it fails. The other sections teach the
+library; this one is where a name is looked up.
+
+include::{reference}[leveloffset=+1]

@@ -6,4 +6,5 @@
 
 import webcpp ;
 
+webcpp.doc pratt : pratt.adoc ;
 webcpp.reference pratt ;

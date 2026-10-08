@@ -1,0 +1,7 @@
+width = 3 -> 3
+height = 4 -> 4
+width * height -> 12
+width = 5 -> 5
+width * height -> 20
+depth = 2 -> refused: the environment is full
+depth -> error: undefined variable

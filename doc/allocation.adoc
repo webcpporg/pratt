@@ -1,0 +1,67 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-allocation]
+== Allocation
+
+A webcpp library avoids dynamic allocation as far as its job allows, and
+lets its user choose the allocator of what it does allocate. In pratt:
+
+* *The engine allocates nothing.* A parser holds a pointer to its grammar,
+  its stream and a count of its active `expression` calls. What a parse
+  allocates is what the grammar's nodes and stream allocate: nothing for
+  the calculator's, and a string for each node of the S-expression
+  grammars of this page's examples, their output format.
+* *The calculator's parse allocates nothing.* Its lexer is lazy and holds a
+  view of the line; its tokens and its nodes are views and numbers.
+* *The environment allocates through its `Allocator`.*
+  `calc::environment<Number, Allocator>` allocates in `assign` alone, when a
+  name is new: the map's node, and the name's characters when the name is
+  longer than the string's own small buffer. Replacing the value of a name
+  it holds and reading one allocate nothing. An environment of the
+  program's own allocates what it chooses, and the one of
+  <<pratt-calculator-environment>> nothing at all.
+* *A `Number` that allocates does so through its own allocator.*
+  `decimal64_t` and `double` allocate nothing. A type whose arithmetic
+  allocates, Boost.Multiprecision's `mpfr_float` with `et_off` for
+  instance, allocates through the allocator it was built with, which the
+  calculator never sees.
+
+So, for a `Number` that allocates nothing, the environment's allocator is
+the calculator's only source of memory. `calc::environment` takes any
+allocator: the map's allocator is `Allocator` rebound to the map's value
+type, and the key's is `Allocator` rebound to `char`, so an allocator
+written for any type serves, a polymorphic one included. This one counts
+what it allocates, and takes the memory from `std::allocator`:
+
+[source]
+----
+include::{examples}/pratt_allocator.cpp[tag=allocator,indent=0]
+----
+
+An environment that allocates through it evaluates five lines:
+
+[source]
+----
+include::{examples}/pratt_allocator.cpp[tag=use,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_allocator.expected[]
+----
+
+`x` and `y` are new names, one node each, and short enough for the string's
+small buffer, so their keys allocate nothing. Evaluating `x * y + 1`, and
+assigning `x` again, allocate nothing, and the environment gives back its
+two nodes when it is destroyed.
+
+pratt's own test of allocation replaces the global `operator new` for its
+program alone, and counts every call: none across a session of the
+calculator over an environment in fixed storage, and over
+`calc::environment` only what its allocator allocated (<<pratt-testing>>).

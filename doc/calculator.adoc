@@ -1,0 +1,269 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#pratt-calculator]
+== The calculator
+
+`<webcpp/pratt/calculator.hpp>` is a grammar on the engine, ready to use:
+numbers and variables, the arithmetic and comparison operators of C, and
+assignment, increment and decrement. `calc::evaluate(source, env)` parses
+one line and computes its value as it parses, reading and writing its
+variables in an environment, `env`, which keeps them from one call to the
+next. Every operator goes through the engine's helpers; the calculator adds
+no parsing of its own.
+
+A program needs the header, and Boost.Decimal's, whose default number type
+the calculator computes in:
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=includes,indent=0]
+----
+
+`evaluate` returns a `pratt::result` of the environment's number type, here
+`boost::decimal::decimal64_t`. This program writes each line, then its value
+in Boost.Decimal's shortest form, or its error:
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=print,indent=0]
+----
+
+It evaluates a few lines in one environment, `calc::environment<>`:
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=values,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_calculator.expected[lines=1..8]
+----
+
+[#pratt-calculator-language]
+=== The language
+
+A number is digits, then optionally a point and more digits: `42`, `0.5`. A
+name is a letter or `+_+`, then letters, digits and `+_+`. Space, tab, carriage
+return and line feed separate tokens. The operators, from the loosest to
+the tightest, with the binding powers the grammar gives them:
+
+[cols="2,1,1,4",options="header"]
+|===
+| Operators | Power | Groups | What it gives
+
+| `=`
+| 10
+| right
+| Writes the value on its right into the variable on its left, and gives
+  that value; `c = d = 5` sets both.
+
+| `+== != < <= > >=+`
+| 20
+| left
+| 1 when the comparison holds, 0 when it does not.
+
+| `{plus}` `-`
+| 30
+| left
+| The sum and the difference.
+
+| `+*+` `/` `%`
+| 40
+| left
+| The product, the quotient and the remainder, whose sign is the left
+  operand's.
+
+| `{plus}` `-` `{plus}{plus}` `--` before an operand
+| 45
+| -
+| The value, its negation; the variable plus or minus one, written back,
+  as its new value.
+
+| `+^+`
+| 50
+| right
+| The left operand to the power of the right one.
+
+| `{plus}{plus}` `--` after an operand
+| 70
+| -
+| The variable plus or minus one, written back, as its old value.
+|===
+
+A sign binds less tightly than `+^+`, so `-2 ^ 2` is -4, and `+^+` groups
+to the right, so `2 ^ 3 ^ 2` is 512, as the output above shows.
+
+A variable keeps its value in the environment, from one line to the next:
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=variables,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_calculator.expected[lines=9..16]
+----
+
+`{plus}{plus}` and `--` behave as in C, and only on a variable: before it,
+they give the new value, and after it, the old one. A node of the calculator
+holds a value and, for a bare variable, its name, which is what `=`,
+`{plus}{plus}` and `--` write. A grouping keeps the name of what it holds,
+so `(a) = 1` writes `a` and `(a){plus}{plus}` increments it, while
+`(1) = 2` has no name to
+write, and is an error. A variable that no line has written is an error
+only where it is read: `a = 5` writes a name the environment does not hold
+yet.
+
+[#pratt-calculator-exactness]
+=== Exactness and the number type
+
+The calculator computes in `boost::decimal::decimal64_t` by default, a
+decimal floating-point type of 16 significant digits, for exactness: a
+decimal fraction written in the input, `0.1` or `19.99`, is exactly that
+number, so `0.1 + 0.2 == 0.3` holds and `price * quantity` is `59.97`, not a
+binary approximation of it. The lexer builds each number in the number
+type's own arithmetic, its digits as one integer divided once by ten to the
+number of its fraction digits, and never through a `double`.
+
+An integral power is computed by repeated squaring, in the number type's
+own multiplications, for exactness and determinism: every product is exact
+while it fits the type's precision, so `43 + 12 + 2 * (44 - 12) ^ 4` is
+exactly 2097207, and the result is the same bits on every platform, where
+a library's `pow` may round differently from one to the next. A negative
+integral exponent is one divided by the positive power, so `2 ^ -3` is
+`0.125`, and `0 ^ 0` is 1. Only an exponent that is not an integer calls
+`pow`.
+
+Division by zero is an error, `division_by_zero`, for `/` and for `%`, and
+for `0 ^ -1`, which divides by zero too. A floating-point type would answer
+an infinity or a NaN, and the line after would compute on with it; the
+calculator stops at the line that asked.
+
+Any type that models `calc::number` serves. It is copyable and constructible
+from `int`, has the binary `+ - / *`, the unary `-` and the six
+comparisons, and `pow`, `fmod` and `trunc`, found as `using std::pow;
+pow(a, b)` finds them, each returning the type itself. Boost.Decimal's types
+model it, and so do `float`, `double` and `long double`. The number type is
+the environment's: `calc::environment<double>` computes in `double`.
+
+[source]
+----
+include::{examples}/pratt_double.cpp[tag=double,indent=0]
+----
+
+It prints, in the shortest form of `std::to_chars`:
+
+[listing]
+----
+include::{examples}/pratt_double.expected[]
+----
+
+The integral powers are still exact, `2 ^ 60` included, since repeated
+squaring multiplies powers of two, which `double` holds exactly. The
+decimal fractions are not: `0.1` and `0.2` are the nearest binary
+fractions, whose sum is not the nearest one to `0.3`. `2 ^ 0.5` is not an
+integral power, and is the result of `std::pow`.
+
+[#pratt-calculator-environment]
+=== The environment
+
+The environment is where the variables live, and its type is the
+program's choice. A type `E` models `calc::environment_for` when its
+`number_type` models `calc::number` and it has two functions:
+
+* `lookup(name)`, which returns a pointer to the value of `name`, or
+  `nullptr` when the name is not set;
+* `assign(name, value)`, which sets it and returns a `pratt::result<void>`,
+  so that it can refuse, a storage that is full for instance, with an error
+  of its own.
+
+The name is a `std::string_view` into the line, so an environment that
+keeps a name copies it. `calc::environment<Number, Allocator>` is the
+calculator's own, a `std::map` whose nodes and keys allocate through the
+program's allocator (<<pratt-allocation>>). This one is a program's own,
+two variables in fixed storage, in `double`:
+
+[source]
+----
+include::{examples}/pratt_environment.cpp[tag=environment,indent=0]
+----
+
+It refuses a third name with `errc::not_enough_memory`, an error of
+Boost.System's generic category, which the calculator returns unchanged:
+
+[source]
+----
+include::{examples}/pratt_environment.cpp[tag=use,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_environment.expected[]
+----
+
+Replacing `width` is no new name, so it succeeds when the storage is full;
+`depth` is refused, and stays unset, so reading it is `undefined_variable`.
+Nothing in this environment allocates, and so nothing in these evaluations
+does.
+
+[#pratt-calculator-errors]
+=== Errors, in reading order
+
+Every error of the calculator is a value of `pratt::result`, one of pratt's
+errors (<<pratt-errors>>) or the environment's own:
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=errors,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_calculator.expected[lines=17..25]
+----
+
+The lexer is lazy: it reads one token ahead, and the parse reads the tokens
+in order, so the first error in reading order is the one returned. A
+token's error is found when the token is read, and an operator's own error,
+an undefined operand or a zero divisor, once the operator has its operands.
+A character that is no token, such as `$`, is a token of its own, of the
+highest binding power, whose nud and led are `invalid_character`, so the
+engine reaches it wherever it stands, even after a whole expression, and
+`1 $ 2` is `invalid_character` rather than `trailing_input`.
+
+A write made before the error stays made: nothing is undone.
+
+[source]
+----
+include::{examples}/pratt_calculator.cpp[tag=writes,indent=0]
+----
+
+It prints:
+
+[listing]
+----
+include::{examples}/pratt_calculator.expected[lines=26..29]
+----
+
+`i{plus}{plus} $` increments `i` before it reads the `$`, so the line fails
+and `i` is 2. `x + 1 $` is `invalid_character` although `x` is undefined:
+`{plus}` finds that its left operand has no value only once it has its
+right one, and reading the right one reads the `$` first. `5 = 3 $` is
+`invalid_assignment_target`, since `=` checks its target before it reads
+its right operand. A program that needs a line to write all or nothing
+evaluates it in a copy of the environment, and keeps the copy when the line
+succeeds.

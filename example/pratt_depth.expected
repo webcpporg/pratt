@@ -1,0 +1,5 @@
+default_max_depth: 32
+31 pairs: 1
+32 pairs: error: expression nested too deeply
+32 pairs, max_depth 64: 1
+10000 opening parentheses: error: expression nested too deeply

@@ -36,6 +36,7 @@ void print(const calc::environment<>::number_type& value, std::ostream& out) {
 
 }  // namespace
 
+// tag::main[]
 int main() {
     calc::environment<> env;
     return webcpp::example::repl(
@@ -50,3 +51,5 @@ int main() {
             out << '\n';
         });
 }
+
+// end::main[]

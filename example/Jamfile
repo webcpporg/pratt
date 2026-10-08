@@ -10,6 +10,18 @@ import webcpp ;
 
 webcpp.targets native wasip2 wasip3 ;
 
+# The guide's programs, each shown on the page with the output it prints.
+webcpp.example pratt_first_grammar.cpp ;
+webcpp.example pratt_helpers.cpp ;
+webcpp.example pratt_calculator.cpp ;
+webcpp.example pratt_double.cpp ;
+webcpp.example pratt_environment.cpp ;
+webcpp.example pratt_allocator.cpp ;
+webcpp.example pratt_depth.cpp ;
+# A test of a grammar, with lightweight_test: it prints nothing on its standard
+# output, and returns boost::report_errors().
+webcpp.example pratt_testing.cpp ;
+
 # The REPL of the openui-lang micro-subset, on the session of openui_repl.input.
 webcpp.example openui_repl.cpp ;
 # The same REPL, on an input that ends without a newline and without exit.

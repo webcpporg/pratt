@@ -282,6 +282,7 @@ struct grammar {
      @return The node of the assignment, of the pair or of the call, or the
      error of the token or of its operands.
     */
+    // tag::led[]
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<node_type> led(Parser& p, const token& t, node_type left) const {
@@ -297,6 +298,8 @@ struct grammar {
         }
     }
 
+    // end::led[]
+
 private:
     /**
      The led of a call of `callee`, whose `(` is consumed: its arguments,
@@ -305,6 +308,7 @@ private:
      Tip: `,` has lbp 0, so it ends the expression of an argument; the loop
      reads it here, inside the led, and never descends around the engine.
     */
+    // tag::call[]
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
     static pratt::result<node_type> call(Parser& p, node_type callee) {
@@ -331,6 +335,8 @@ private:
             p.advance();
         }
     }
+
+    // end::call[]
 };
 
 }  // namespace webcpp::example::openui
