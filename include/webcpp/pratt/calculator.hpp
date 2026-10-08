@@ -475,11 +475,11 @@ concept environment_for = requires(E e, const E ce, std::string_view n, E::numbe
  It allocates through `Allocator` alone: in @ref assign, when a name is new,
  the map's node, and the key's characters when the name is longer than the
  string's small buffer; and when it is constructed, with a standard library
- whose map allocates then, as MSVC's does. Assigning a name it holds
- replaces the value in place, and @ref lookup allocates nothing. For a `Number` that
- allocates nothing, such as `decimal64_t` or `double`, nothing else that
- @ref evaluate does allocates, so this environment's allocator is the
- calculator's only source of memory. A `Number` whose arithmetic allocates,
+ whose map allocates then, as MSVC's does. Assigning a name it holds replaces
+ the value in place, and @ref lookup allocates nothing. For a `Number` that
+ allocates nothing, such as `decimal64_t` or `double`, nothing else that @ref
+ evaluate does allocates, so this environment's allocator is the calculator's
+ only source of memory. A `Number` whose arithmetic allocates,
  Boost.Multiprecision's `mpfr_float` with `et_off` for instance, allocates
  through its own allocator.
 

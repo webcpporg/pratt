@@ -116,9 +116,10 @@ struct arithmetic {
             default: return left * *right;
         }
     }
+
+    // NOLINTEND(misc-no-recursion)
 };
 
-// NOLINTEND(misc-no-recursion)
 }  // namespace
 
 int main() {

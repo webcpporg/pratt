@@ -72,8 +72,9 @@ void operator delete(void* memory, std::size_t /*size*/) noexcept {
 namespace {
 
 /**
- Memory of `size` bytes aligned to `alignment`, from aligned_alloc, whose size must be a multiple of
- the alignment.
+ Memory of `size` bytes aligned to `alignment`: from aligned_alloc, whose size must be a multiple
+ of the alignment; or, under _MSC_VER, from _aligned_malloc, which needs no such multiple but
+ takes the same rounded size regardless.
 
  Tip: the UCRT of MSVC has no aligned_alloc, and memory from its _aligned_malloc is given back with
  _aligned_free, never free, hence the two below.

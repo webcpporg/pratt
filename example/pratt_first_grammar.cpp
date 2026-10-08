@@ -98,10 +98,11 @@ struct arithmetic {
             default: return left * *right;
         }
     }
+
+    // NOLINTEND(misc-no-recursion)
 };
 
 // end::grammar[]
-// NOLINTEND(misc-no-recursion)
 }  // namespace
 
 // tag::main[]
