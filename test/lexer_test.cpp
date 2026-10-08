@@ -16,6 +16,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -274,12 +275,19 @@ void a_fraction_below_the_smallest_value_is_zero() {
     BOOST_TEST(number_of<Number>("0." + std::string(400, '0') + "1") == Number(0));
 }
 
-/** The value of `text` as std::from_chars reads it into a double. */
-double double_from_chars(std::string_view text) {
-    double value = 0;
-    const std::from_chars_result read =
-        std::from_chars(text.data(), text.data() + text.size(), value);
-    require(BOOST_TEST(read.ec == std::errc{}));
+/**
+ The value of `text` as std::strtod reads it into a double, all of it, in the "C" locale every
+ test program runs in.
+
+ Tip: not std::from_chars, which the libc++ of Xcode 16.4 does not provide for floating point.
+ strtod is correctly rounded on every lane, and its errno is not read: it may set ERANGE for a
+ subnormal result, which a test below reads on purpose.
+*/
+double double_from_text(std::string_view text) {
+    const std::string terminated(text);
+    char* end = nullptr;
+    const double value = std::strtod(terminated.c_str(), &end);
+    require(BOOST_TEST(end == terminated.c_str() + terminated.size()));
     return value;
 }
 
@@ -296,7 +304,7 @@ constexpr std::string_view thirty_digits = "123456789012345678901234567890";
 
 /** A literal of thirty digits is within one unit in the last place of the nearest double. */
 void a_long_integer_is_within_one_ulp_in_double() {
-    const double nearest = double_from_chars(thirty_digits);
+    const double nearest = double_from_text(thirty_digits);
     const auto got = number_of<double>(thirty_digits);
     BOOST_TEST(got >= std::nextafter(nearest, 0.0));
     BOOST_TEST(got <= std::nextafter(nearest, std::numeric_limits<double>::infinity()));
@@ -317,7 +325,7 @@ void a_long_integer_is_within_one_ulp_in_decimal() {
 */
 void a_subnormal_fraction_lexes_to_its_value() {
     const std::string binary = "0." + std::string(320, '0') + "1";
-    BOOST_TEST_EQ(number_of<double>(binary), double_from_chars(binary));
+    BOOST_TEST_EQ(number_of<double>(binary), double_from_text(binary));
     BOOST_TEST(number_of<decimal64_t>("0." + std::string(390, '0') + "1") == decimal64_t(1, -391));
 }
 
@@ -352,7 +360,7 @@ void a_literal_at_the_top_of_the_range_is_finite_in_double() {
     require(BOOST_TEST_EQ(largest.size(), 309U));
     BOOST_TEST(within_four_ulps(number_of<double>(largest), std::numeric_limits<double>::max()));
     const std::string below = "17976931348623146" + std::string(292, '0');
-    BOOST_TEST(within_four_ulps(number_of<double>(below), double_from_chars(below)));
+    BOOST_TEST(within_four_ulps(number_of<double>(below), double_from_text(below)));
 }
 
 /** A literal just past the largest double, `1` and 309 zeros, is infinite. */
