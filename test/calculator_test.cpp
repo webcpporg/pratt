@@ -13,6 +13,7 @@
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/decimal.hpp>
+#include <boost/multiprecision/cpp_dec_float.hpp>
 #include <boost/system/errc.hpp>
 
 #include <cmath>
@@ -23,6 +24,7 @@
 #include <numbers>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include "environments.hpp"
 
@@ -61,6 +63,15 @@ struct lookup_only {
 
 }  // namespace
 
+/**
+ Boost.Multiprecision's decimal of 50 digits, without expression templates: a number that
+ pratt::error converts to, as its constructor from any arithmetic type takes an enum too.
+*/
+using decimal50 = boost::multiprecision::number<boost::multiprecision::cpp_dec_float<50>,
+                                                boost::multiprecision::et_off>;
+
+static_assert(calc::number<decimal50>);
+static_assert(std::is_convertible_v<pratt::error, decimal50>);
 static_assert(std::same_as<calc::environment<>::number_type, decimal64_t>);
 static_assert(std::same_as<calc::environment<double>::number_type, double>);
 static_assert(calc::environment_for<calc::environment<>>);
@@ -441,6 +452,20 @@ void the_environment_inserts_or_replaces() {
     BOOST_TEST(value_of(env, "w") == Number(3));
 }
 
+/**
+ A number that pratt::error converts to evaluates, its errors included: 2^100 is exact in 50
+ digits, and a third rounds once.
+*/
+void a_number_an_error_converts_to_evaluates() {
+    calc::environment<decimal50> env;
+    value_is(env, "1 / 3 + 2 ^ 100",
+             decimal50("1267650600228229401496703205376") + (decimal50(1) / decimal50(3)));
+    error_is(env, "1 / 0", pratt::error::division_by_zero);
+    error_is(env, "5 % 0", pratt::error::division_by_zero);
+    error_is(env, "0 ^ -1", pratt::error::division_by_zero);
+    error_is(env, "x", pratt::error::undefined_variable);
+}
+
 template <class Number>
 void every_case() {
     an_integral_power_is_exact<Number>();
@@ -474,5 +499,6 @@ int main() {
     a_fixed_environment_returns_its_own_error();
     a_failing_assign_is_returned_unchanged();
     the_environment_allocates_through_its_allocator();
+    a_number_an_error_converts_to_evaluates();
     return boost::report_errors();
 }

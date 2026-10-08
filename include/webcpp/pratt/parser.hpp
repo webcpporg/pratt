@@ -191,7 +191,8 @@ public:
     */
     result<node_type> expression(int rbp) {  // NOLINT(misc-no-recursion)
         if (depth_ >= max_depth_) {
-            return error::nesting_too_deep;
+            // In place, as every error of the engine: a node type may convert from an error too.
+            return {boost::system::in_place_error, error::nesting_too_deep};
         }
         const detail::depth_guard guard(depth_);
         token_type token = stream_.advance();
@@ -221,7 +222,7 @@ public:
             return node;
         }
         if (!stream_.at_end()) {
-            return error::trailing_input;
+            return {boost::system::in_place_error, error::trailing_input};
         }
         return node;
     }
@@ -310,22 +311,23 @@ result<typename Parser::node_type> prefix(Parser& p, int bp, Make make) {
  The led of a left-associative infix operator of power `bp`.
 
  @tparam Parser The parser's type, a @ref parser.
- @tparam Node The node's type, the parser's `node_type`.
+ @tparam Node The node's type, the parser's `node_type`, as the led passes it.
  @tparam Make A callable of the two operands' nodes.
  @param p The parser.
  @param bp The operator's power.
- @param left The left operand's node.
+ @param left The left operand's node, which `make` receives as it is passed:
+ a led that owns it moves it in.
  @param make Builds the node of the operator from its operands', as a `result`.
  @return The node, or the right operand's error.
 */
 template <class Parser, class Node, class Make>
 // NOLINTNEXTLINE(misc-no-recursion)
-result<typename Parser::node_type> infix_left(Parser& p, int bp, Node left, Make make) {
+result<typename Parser::node_type> infix_left(Parser& p, int bp, Node&& left, Make make) {
     result<typename Parser::node_type> right = p.expression(bp);
     if (right.has_error()) {
         return right;
     }
-    return make(std::move(left), std::move(*right));
+    return make(std::forward<Node>(left), std::move(*right));
 }
 
 /**
@@ -335,36 +337,37 @@ result<typename Parser::node_type> infix_left(Parser& p, int bp, Node left, Make
  operator on the right takes it.
 
  @tparam Parser The parser's type, a @ref parser.
- @tparam Node The node's type, the parser's `node_type`.
+ @tparam Node The node's type, the parser's `node_type`, as the led passes it.
  @tparam Make A callable of the two operands' nodes.
  @param p The parser.
  @param bp The operator's power.
- @param left The left operand's node.
+ @param left The left operand's node, which `make` receives as it is passed:
+ a led that owns it moves it in.
  @param make Builds the node of the operator from its operands', as a `result`.
  @return The node, or the right operand's error.
 */
 template <class Parser, class Node, class Make>
 // NOLINTNEXTLINE(misc-no-recursion)
-result<typename Parser::node_type> infix_right(Parser& p, int bp, Node left, Make make) {
+result<typename Parser::node_type> infix_right(Parser& p, int bp, Node&& left, Make make) {
     result<typename Parser::node_type> right = p.expression(bp - 1);
     if (right.has_error()) {
         return right;
     }
-    return make(std::move(left), std::move(*right));
+    return make(std::forward<Node>(left), std::move(*right));
 }
 
 /**
  The led of a postfix operator: its operand is the whole left expression.
 
- @tparam Node The node's type, the parser's `node_type`.
+ @tparam Node The node's type, the parser's `node_type`, as the led passes it.
  @tparam Make A callable of the operand's node.
- @param left The operand's node.
+ @param left The operand's node, which `make` receives as it is passed.
  @param make Builds the node of the operator from its operand's, as a `result`.
  @return What `make` returns.
 */
 template <class Node, class Make>
-auto postfix(Node left, Make make) -> decltype(make(std::move(left))) {
-    return make(std::move(left));
+auto postfix(Node&& left, Make make) -> decltype(make(std::forward<Node>(left))) {
+    return make(std::forward<Node>(left));
 }
 
 /**
@@ -386,7 +389,7 @@ result<typename Parser::node_type> grouping(Parser& p, IsClose is_close) {
         return inner;
     }
     if (!is_close(p.peek())) {
-        return error::expected_closing_token;
+        return {boost::system::in_place_error, error::expected_closing_token};
     }
     p.advance();
     return inner;

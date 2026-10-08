@@ -81,3 +81,10 @@ choice, and the enumerators are there for a grammar to use, as the
 calculator and the micro-subset do. A grammar, or an environment of the
 calculator, may return an error of its own category instead, and pratt
 passes it on unchanged, as <<pratt-calculator-environment>> shows.
+
+A grammar returns an error into its `result` as `return
+pratt::error::unexpected_token;`. When its node type converts from an
+`error` too, as a Boost.Multiprecision number does, `result` refuses that
+conversion as ambiguous, and the grammar builds the error in place, as the
+engine and the calculator always do:
+`return {boost::system::in_place_error, pratt::error::unexpected_token};`.

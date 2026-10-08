@@ -160,6 +160,9 @@ inline boost::system::error_code make_error_code(error e) noexcept {
  unchanged.
 
  @tparam T The type of the value; `void` for an operation that returns none.
+ @note When `T` converts from an @ref error, as a Boost.Multiprecision
+ number does, `result` takes neither implicitly: build the error in place,
+ `{boost::system::in_place_error, error::unexpected_token}`, as pratt does.
  @see "Errors", in the guide.
 */
 template <class T>

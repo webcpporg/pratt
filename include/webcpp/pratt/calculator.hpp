@@ -568,7 +568,9 @@ namespace detail {
 template <number Number>
 result<Number> divide(const Number& a, const Number& b) {
     if (b == Number(0)) {
-        return error::division_by_zero;
+        // In place, as every error into a result of Number: a Number may convert from an error,
+        // as Boost.Multiprecision's numbers convert from any enum.
+        return {boost::system::in_place_error, error::division_by_zero};
     }
     return Number(a / b);
 }
@@ -580,7 +582,7 @@ result<Number> divide(const Number& a, const Number& b) {
 template <number Number>
 result<Number> remainder(const Number& a, const Number& b) {
     if (b == Number(0)) {
-        return error::division_by_zero;
+        return {boost::system::in_place_error, error::division_by_zero};
     }
     return math::adl_fmod(a, b);
 }
@@ -776,14 +778,14 @@ public:
             case kind::lparen:
                 return grouping(p, [](const token_type& n) { return n.k == kind::rparen; });
             case kind::plus:
-                return prefix(p, unary_bp, [](node_type operand) -> result<node_type> {
+                return prefix(p, unary_bp, [](const node_type& operand) -> result<node_type> {
                     if (!operand.has_value) {
                         return error::undefined_variable;
                     }
                     return value_node(operand.value);
                 });
             case kind::minus:
-                return prefix(p, unary_bp, [](node_type operand) -> result<node_type> {
+                return prefix(p, unary_bp, [](const node_type& operand) -> result<node_type> {
                     if (!operand.has_value) {
                         return error::undefined_variable;
                     }
@@ -792,8 +794,9 @@ public:
             case kind::increment:
             case kind::decrement: {
                 const number_type step(t.k == kind::increment ? 1 : -1);
-                return prefix(p, unary_bp,
-                              [this, step](node_type target) { return step_before(target, step); });
+                return prefix(p, unary_bp, [this, &step](const node_type& target) {
+                    return step_before(target, step);
+                });
             }
             case kind::invalid: return error::invalid_character;
             case kind::end: return error::unexpected_end;
@@ -813,44 +816,43 @@ public:
     */
     template <class Parser>
     // NOLINTNEXTLINE(misc-no-recursion)
-    result<node_type> led(Parser& p, const token_type& t, node_type left) const {
+    result<node_type> led(Parser& p, const token_type& t, const node_type& left) const {
         switch (t.k) {
             case kind::assign:
                 if (left.name.empty()) {
                     return error::invalid_assignment_target;
                 }
-                return infix_right(
-                    p, assign_bp, std::move(left),
-                    [this](node_type target, node_type value) { return write(target, value); });
-            case kind::plus: return infix_left(p, additive_bp, std::move(left), arithmetic(add));
-            case kind::minus:
-                return infix_left(p, additive_bp, std::move(left), arithmetic(subtract));
-            case kind::star:
-                return infix_left(p, multiplicative_bp, std::move(left), arithmetic(multiply));
+                return infix_right(p, assign_bp, left,
+                                   [this](const node_type& target, const node_type& value) {
+                                       return write(target, value);
+                                   });
+            case kind::plus: return infix_left(p, additive_bp, left, arithmetic(add));
+            case kind::minus: return infix_left(p, additive_bp, left, arithmetic(subtract));
+            case kind::star: return infix_left(p, multiplicative_bp, left, arithmetic(multiply));
             case kind::slash:
-                return infix_left(p, multiplicative_bp, std::move(left),
+                return infix_left(p, multiplicative_bp, left,
                                   arithmetic(detail::divide<number_type>));
             case kind::percent:
-                return infix_left(p, multiplicative_bp, std::move(left),
+                return infix_left(p, multiplicative_bp, left,
                                   arithmetic(detail::remainder<number_type>));
             case kind::caret:
-                return infix_right(p, power_bp, std::move(left),
-                                   arithmetic(detail::power<number_type>));
+                return infix_right(p, power_bp, left, arithmetic(detail::power<number_type>));
             case kind::eq:
             case kind::ne:
             case kind::lt:
             case kind::le:
             case kind::gt:
             case kind::ge:
-                return infix_left(p, compare_bp, std::move(left),
+                return infix_left(p, compare_bp, left,
                                   arithmetic([k = t.k](const number_type& a, const number_type& b) {
                                       return compare(k, a, b);
                                   }));
             case kind::increment:
             case kind::decrement: {
                 const number_type step(t.k == kind::increment ? 1 : -1);
-                return postfix(std::move(left),
-                               [this, step](node_type target) { return step_after(target, step); });
+                return postfix(left, [this, &step](const node_type& target) {
+                    return step_after(target, step);
+                });
             }
             case kind::invalid: return error::invalid_character;
             default: return error::unexpected_token;
@@ -891,7 +893,7 @@ private:
     /** The make of a binary operator: both operands read as values, then `op` of the two. */
     template <class Op>
     static auto arithmetic(Op op) {
-        return [op](node_type l, node_type r) -> result<node_type> {
+        return [op](const node_type& l, const node_type& r) -> result<node_type> {
             if (!l.has_value || !r.has_value) {
                 return error::undefined_variable;
             }
@@ -996,10 +998,10 @@ result<typename Environment::number_type> evaluate(std::string_view source, Envi
     const grammar<Environment> rules(env);
     const result<node<number_type>> parsed = parse(rules, stream<number_type>(source), max_depth);
     if (parsed.has_error()) {
-        return parsed.error();
+        return {boost::system::in_place_error, parsed.error()};
     }
     if (!parsed->has_value) {
-        return error::undefined_variable;
+        return {boost::system::in_place_error, error::undefined_variable};
     }
     return parsed->value;
 }

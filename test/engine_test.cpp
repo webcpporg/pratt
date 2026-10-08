@@ -153,11 +153,48 @@ private:
     table inner_;
 };
 
+/**
+ A node that converts from any type, as a Boost.Multiprecision number with et_off does, and so
+ from pratt::error too.
+
+ Tip: boost::system::result<T> refuses to convert from a value that converts both to its T and to
+ an error_code, so only an error built in place, with in_place_error, reaches this node's result.
+*/
+struct convertible_from_anything {
+    template <class T>
+    convertible_from_anything(const T& /*value*/) {}  // NOLINT(*-explicit-*)
+};
+
+static_assert(std::is_convertible_v<pratt::error, convertible_from_anything>);
+
+/** Atoms and `( )`, whose node converts from anything: what the engine's own errors reach. */
+struct accepting {
+    using node_type = convertible_from_anything;
+
+    [[nodiscard]] static int lbp(char /*token*/) { return 0; }
+
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
+    template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
+    pratt::result<node_type> nud(Parser& parser, char token) const {
+        if (token == '(') {
+            return pratt::grouping(parser, [](char next) { return next == ')'; });
+        }
+        return node_type(token);
+    }
+
+    template <class Parser>
+    pratt::result<node_type> led(Parser& /*parser*/, char /*token*/, node_type /*left*/) const {
+        return {boost::system::in_place_error, pratt::error::unexpected_token};
+    }
+};
+
 using table_parser = pratt::parser<table, sexpr::stream>;
 
 static_assert(pratt::token_stream<sexpr::stream>);
 static_assert(pratt::grammar_for<table, sexpr::stream>);
 static_assert(pratt::grammar_for<recording, sexpr::stream>);
+static_assert(pratt::grammar_for<accepting, sexpr::stream>);
 
 // A parser keeps a pointer to its grammar, so it refuses a temporary one.
 static_assert(!std::is_constructible_v<table_parser, table, sexpr::stream>);
@@ -431,6 +468,17 @@ void parse_bounds_the_depth_by_default() {
     BOOST_TEST(deep.error() == pratt::error::nesting_too_deep);
 }
 
+/** The engine's three errors reach a grammar whose node converts from anything, an error too. */
+void the_engine_errors_reach_a_node_that_converts_from_anything() {
+    BOOST_TEST(pratt::parse(accepting{}, sexpr::stream("(a)")).has_value());
+    const auto unclosed = pratt::parse(accepting{}, sexpr::stream("(a"));
+    BOOST_TEST(unclosed.has_error() && unclosed.error() == pratt::error::expected_closing_token);
+    const auto trailing = pratt::parse(accepting{}, sexpr::stream("a)"));
+    BOOST_TEST(trailing.has_error() && trailing.error() == pratt::error::trailing_input);
+    const auto deep = pratt::parse(accepting{}, sexpr::stream(nested(4)), 4);
+    BOOST_TEST(deep.has_error() && deep.error() == pratt::error::nesting_too_deep);
+}
+
 }  // namespace
 
 int main() {
@@ -452,5 +500,6 @@ int main() {
     a_parser_is_reusable_after_an_error_in_an_operand();
     a_parser_is_reusable_after_a_success();
     parse_bounds_the_depth_by_default();
+    the_engine_errors_reach_a_node_that_converts_from_anything();
     return boost::report_errors();
 }
