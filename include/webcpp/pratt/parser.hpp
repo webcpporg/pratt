@@ -26,12 +26,13 @@ namespace webcpp::pratt {
 //
 // | Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8 MiB |
 // | ------------------------- | -------------------- | ------------ | ------------------- |
-// | `((...(1)...))`           | 188 (349 B)          | 338 (194 B)  | 15367 (545 B)       |
-// | `- - ... - 1`             | 179 (366 B)          | 338 (194 B)  | 15367 (545 B)       |
-// | `2 ^ 2 ^ ... ^ 2`         | 71 (923 B)           | 270 (243 B)  | 7256 (1154 B)       |
+// | `((...(1)...))`           | 232 (282 B)          | 450 (146 B)  | 16854 (497 B)       |
+// | `- - ... - 1`             | 263 (249 B)          | 450 (146 B)  | 18016 (465 B)       |
+// | `2 ^ 2 ^ ... ^ 2`         | 240 (273 B)          | 405 (162 B)  | 12741 (657 B)       |
 //
-// Half of 71 is 35, hence 32. In a debug build on wasm, a level of `^` costs 862 bytes and a
-// level of grouping 336, plus at most about 4.5 KiB that a parse needs at any depth.
+// Half of 232 is 116, hence 64. In a debug build on wasm, a level of grouping costs 272 bytes, a
+// level of `^` 256 and a level of sign 240, plus at most about 7.5 KiB that a parse needs at any
+// depth, its heaviest operand, a `pow`, included.
 
 /**
  The deepest nesting of @ref parser::expression calls a parse allows unless
@@ -44,7 +45,7 @@ namespace webcpp::pratt {
 
  @see "Limits", in the guide.
 */
-inline constexpr int default_max_depth = 32;
+inline constexpr int default_max_depth = 64;
 
 /**
  A source of tokens: the next one is read by `peek` and consumed by

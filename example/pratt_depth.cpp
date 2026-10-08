@@ -41,14 +41,14 @@ int main() {
     calc::environment<> env;
     std::cout << "default_max_depth: " << pratt::default_max_depth << '\n';
 
-    std::cout << "31 pairs: ";
-    print(calc::evaluate(nested(31), env));
+    std::cout << "63 pairs: ";
+    print(calc::evaluate(nested(63), env));
 
-    std::cout << "32 pairs: ";
-    print(calc::evaluate(nested(32), env));
+    std::cout << "64 pairs: ";
+    print(calc::evaluate(nested(64), env));
 
-    std::cout << "32 pairs, max_depth 64: ";
-    print(calc::evaluate(nested(32), env, 64));
+    std::cout << "64 pairs, max_depth 128: ";
+    print(calc::evaluate(nested(64), env, 128));
 
     std::cout << "10000 opening parentheses: ";
     print(calc::evaluate(std::string(10000, '('), env));

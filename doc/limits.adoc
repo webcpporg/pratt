@@ -21,7 +21,7 @@ before it reads a token. So the stack never grows past what the limit
 allows, and the input that would have overflowed it is an error like any
 other. `max_depth` is an argument of the parser's constructor, of `parse`
 and of `calc::evaluate`, and its default is `pratt::default_max_depth`,
-which is 32. A negative `max_depth` behaves as 0, which refuses every parse.
+which is 64. A negative `max_depth` behaves as 0, which refuses every parse.
 
 A `1` inside a number of parentheses is that number plus one calls deep:
 
@@ -60,31 +60,31 @@ build, on a stack of 8{nbsp}MiB:
 | Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8{nbsp}MiB
 
 | `+((...(1)...))+`
-| 188 (349 B)
-| 338 (194 B)
-| 15367 (545 B)
+| 232 (282 B)
+| 450 (146 B)
+| 16854 (497 B)
 
 | `+- - ... - 1+`
-| 179 (366 B)
-| 338 (194 B)
-| 15367 (545 B)
+| 263 (249 B)
+| 450 (146 B)
+| 18016 (465 B)
 
 | `+2 ^ 2 ^ ... ^ 2+`
-| 71 (923 B)
-| 270 (243 B)
-| 7256 (1154 B)
+| 240 (273 B)
+| 405 (162 B)
+| 12741 (657 B)
 |===
 
-The shape that costs the most is a chain of `+^+`, since each power is
-computed in a frame of its own on the way back up. The default is the
-largest power of two at most half the deepest debug parse that wasm's
-default stack holds: half of 71 is 35, hence 32. A parse at the default
-depth uses at most half the stack, in the worst shape and the slowest
-build, on every target pratt is tested on; a build with `-O2` and a native
-stack hold far more.
+The shape that costs the most is a grouping, by a few bytes a level. The
+default is the largest power of two at most half the deepest debug parse
+that wasm's default stack holds: half of 232 is 116, hence 64. A parse at
+the default depth uses at most half the stack, in the worst shape and the
+slowest build, on every target pratt is tested on; a build with `-O2` and a
+native stack hold far more.
 
-In a debug build on wasm, a level of `+^+` costs 862 bytes and a level of
-grouping 336, plus at most about 4.5{nbsp}KiB that a parse needs at any depth.
+In a debug build on wasm, a level of grouping costs 272 bytes, a level of
+`+^+` 256 and a level of sign 240, plus at most about 7.5{nbsp}KiB that a parse
+needs at any depth, its heaviest operand, a `pow`, included.
 
 [#pratt-limits-raising]
 === Raising the limit
@@ -92,9 +92,9 @@ grouping 336, plus at most about 4.5{nbsp}KiB that a parse needs at any depth.
 A program that raises the limit raises its stack with it, by the cost of a
 level times the levels it adds. On wasm, the stack is set when the program
 is linked, with the linker's flag `-Wl,-z,stack-size=` and the size in
-bytes. A program that evaluates chains of `+^+` 1024 deep in a debug build
-needs about 1024 times 862 bytes and 4.5{nbsp}KiB, under 1{nbsp}MiB, so it links
-with a stack of 1{nbsp}MiB:
+bytes. A program that evaluates groupings 1024 deep in a debug build needs
+about 1024 times 272 bytes and 7.5{nbsp}KiB, about 280{nbsp}KiB, so it links
+with a stack of 1{nbsp}MiB, which keeps the margin the default keeps:
 
 [source,bash]
 ----
@@ -117,5 +117,5 @@ commonly 8{nbsp}MiB on Linux and macOS (`ulimit -s` shows it), and a thread a
 program creates takes the size it is created with, through
 `pthread_attr_setstacksize` or Boost.Thread's
 `boost::thread::attributes::set_stack_size`. The measurement above holds
-7256 levels of `+^+` on 8{nbsp}MiB in a debug build, so a native program has
+12741 levels of `+^+` on 8{nbsp}MiB in a debug build, so a native program has
 room for a limit far above the default without changing its stack.
