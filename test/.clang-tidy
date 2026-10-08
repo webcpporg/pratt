@@ -1,11 +1,5 @@
-# The tests inherit the superproject's configuration and switch off one check
-# and one option.
-#
-# misc-no-recursion reports the test grammars' nud and led (sexpr.hpp's,
-# engine_test.cpp's), which call the engine's expression() and are called
-# back by it: a Pratt grammar is that recursion, and the parser's max_depth
-# bounds it. The switch is for those grammars alone: parser.hpp states its
-# own exemption on each recursive function's line, NOLINT(misc-no-recursion).
+# The tests inherit the superproject's configuration and switch off one
+# option.
 #
 # bugprone-exception-escape.CheckMain treats every test's main as a function
 # that should not throw. A test's main lets what a failing case throws, a
@@ -15,8 +9,6 @@
 # for everything else: a noexcept function, a destructor, a move or a swap.
 ---
 InheritParentConfig: true
-Checks: >
-  -misc-no-recursion
 CheckOptions:
   - key: bugprone-exception-escape.CheckMain
     value: 'false'

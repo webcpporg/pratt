@@ -73,7 +73,9 @@ struct table {
         return row->power;
     }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> nud(Parser& parser, char token) const {
         if ((token >= 'a' && token <= 'z') || (token >= '0' && token <= '9')) {
             return pratt::literal(
@@ -95,7 +97,9 @@ struct table {
         return pratt::error::unexpected_token;
     }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> led(Parser& parser, char token, std::string left) const {
         const binding* row = find_binding(token);
         if (row == nullptr) {
@@ -128,13 +132,17 @@ public:
 
     [[nodiscard]] static int lbp(char token) { return table::lbp(token); }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> nud(Parser& parser, char token) const {
         calls_->push_back(std::string("nud ") + token);
         return inner_.nud(parser, token);
     }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> led(Parser& parser, char token, std::string left) const {
         calls_->push_back(std::string("led ") + token);
         return inner_.led(parser, token, std::move(left));

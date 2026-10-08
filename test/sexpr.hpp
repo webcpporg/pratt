@@ -60,7 +60,9 @@ struct grammar {
         }
     }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> nud(Parser& parser, char token) const {
         if (token >= '0' && token <= '9') {
             return pratt::literal(
@@ -82,7 +84,9 @@ struct grammar {
         return pratt::error::unexpected_token;
     }
 
+    // Recurses through the engine's expression(): Pratt's recursion, bounded by max_depth.
     template <class Parser>
+    // NOLINTNEXTLINE(misc-no-recursion)
     pratt::result<std::string> led(Parser& parser, char token, std::string left) const {
         const auto join = [token](std::string&& l, std::string&& r) -> pratt::result<std::string> {
             return "(" + std::string(1, token) + " " + std::move(l) + " " + std::move(r) + ")";
