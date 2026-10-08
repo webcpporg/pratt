@@ -1,0 +1,12 @@
+{
+    "boundaries": [
+        {
+            "headers": [
+                "include/webcpp/pratt.hpp",
+                "include/webcpp/pratt/errors.hpp"
+            ],
+            "must-not-include": ["webcpp/pratt/calculator", "boost/decimal"],
+            "why": "the engine knows no grammar and no number type"
+        }
+    ]
+}

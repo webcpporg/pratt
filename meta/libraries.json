@@ -1,0 +1,10 @@
+{
+    "key": "pratt",
+    "name": "pratt",
+    "authors": ["R"],
+    "description": "A generic Pratt parser engine for C++20, with a decimal calculator built on it.",
+    "category": ["Parsing"],
+    "maintainers": ["R <github.overboard312@passmail.net>"],
+    "cxxstd": "20",
+    "port-of": null
+}
