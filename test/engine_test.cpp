@@ -323,6 +323,41 @@ void the_depth_is_bounded_by_max_depth() {
     BOOST_TEST(none.error() == pratt::error::nesting_too_deep);
 }
 
+/** Parses `source` with `max_depth` and expects `expected`. */
+void parses_within(std::string_view source, int max_depth, std::string_view expected) {
+    const pratt::result<std::string> parsed =
+        pratt::parse(table{}, sexpr::stream(source), max_depth);
+    require(BOOST_TEST(parsed.has_value()));
+    BOOST_TEST_EQ(*parsed, expected);
+}
+
+/** Parses `source` with `max_depth` and expects it refused as too deep. */
+void too_deep_within(std::string_view source, int max_depth) {
+    const pratt::result<std::string> parsed =
+        pratt::parse(table{}, sexpr::stream(source), max_depth);
+    require(BOOST_TEST(parsed.has_error()));
+    BOOST_TEST(parsed.error() == pratt::error::nesting_too_deep);
+}
+
+void a_prefix_operator_costs_one_level() {
+    parses_within("---a", 4, "(neg (neg (neg a)))");
+    too_deep_within("----a", 4);
+}
+
+void a_right_associative_chain_costs_one_level_per_operator() {
+    parses_within("a^b^c^d", 4, "(^ a (^ b (^ c d)))");
+    too_deep_within("a^b^c^d^e", 4);
+}
+
+void a_left_associative_chain_costs_one_level_for_its_operands() {
+    parses_within("a-b-c-d-e-f", 2, "(- (- (- (- (- a b) c) d) e) f)");
+    too_deep_within("a-b", 1);
+}
+
+void a_postfix_operator_costs_no_level() {
+    parses_within("a!!!", 1, "(! (! (! a)))");
+}
+
 void the_refused_call_reads_no_token() {
     const table grammar;
     const std::string source = nested(4);
@@ -340,6 +375,18 @@ void a_parser_is_reusable_after_an_error() {
     const pratt::result<std::string> deep = parser.expression(0);
     require(BOOST_TEST(deep.has_error()));
     BOOST_TEST(deep.error() == pratt::error::nesting_too_deep);
+
+    const pratt::result<std::string> next = parser.expression(0);
+    require(BOOST_TEST(next.has_value()));
+    BOOST_TEST_EQ(*next, "a");
+}
+
+void a_parser_is_reusable_after_an_error_in_an_operand() {
+    const table grammar;
+    table_parser parser(grammar, sexpr::stream("a+)a"), 2);
+    const pratt::result<std::string> failed = parser.expression(0);
+    require(BOOST_TEST(failed.has_error()));
+    BOOST_TEST(failed.error() == pratt::error::unexpected_token);
 
     const pratt::result<std::string> next = parser.expression(0);
     require(BOOST_TEST(next.has_value()));
@@ -383,8 +430,13 @@ int main() {
     the_engine_and_the_grammar_report_errors();
     expression_dispatches_to_nud_and_led_only();
     the_depth_is_bounded_by_max_depth();
+    a_prefix_operator_costs_one_level();
+    a_right_associative_chain_costs_one_level_per_operator();
+    a_left_associative_chain_costs_one_level_for_its_operands();
+    a_postfix_operator_costs_no_level();
     the_refused_call_reads_no_token();
     a_parser_is_reusable_after_an_error();
+    a_parser_is_reusable_after_an_error_in_an_operand();
     a_parser_is_reusable_after_a_success();
     parse_bounds_the_depth_by_default();
     return boost::report_errors();

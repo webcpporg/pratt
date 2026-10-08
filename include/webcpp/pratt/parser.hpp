@@ -114,9 +114,14 @@ public:
     parser(const Grammar& grammar, Stream stream, int max_depth = default_max_depth)
         : grammar_(&grammar), stream_(std::move(stream)), max_depth_(max_depth) {}
 
-    /** Refused: the parser keeps a pointer to its grammar, which a temporary would leave dangling.
-     */
+    /**
+     Refused: the parser keeps a pointer to its grammar, which a temporary
+     would leave dangling.
+    */
     parser(const Grammar&& grammar, Stream stream, int max_depth = default_max_depth) = delete;
+
+    // expression() recurses through the grammar's nud and led and the helpers below: that recursion
+    // is Pratt parsing, and max_depth bounds it, hence the exemption from misc-no-recursion.
 
     /**
      Parses the longest expression whose operators bind tighter than `rbp`.
@@ -130,7 +135,7 @@ public:
      @ref error::nesting_too_deep, before any token is read, from the call
      that would make more than `max_depth` calls active.
     */
-    result<node_type> expression(int rbp) {
+    result<node_type> expression(int rbp) {  // NOLINT(misc-no-recursion)
         if (depth_ >= max_depth_) {
             return error::nesting_too_deep;
         }
@@ -198,6 +203,8 @@ result<typename Grammar::node_type> parse(const Grammar& grammar, Stream stream,
 
 // The category helpers. Each writes one category of operator through the parser's expression()
 // recursion alone, so a grammar built from them still routes every token through nud and led.
+// Those that recurse are exempt from misc-no-recursion as expression() is, on the line above
+// their name.
 
 /**
  The nud of an atom: the token is the whole expression.
@@ -220,6 +227,7 @@ auto literal(Make make, const Token& token) -> decltype(make(token)) {
  @return The node, or the operand's error.
 */
 template <class Parser, class Make>
+// NOLINTNEXTLINE(misc-no-recursion)
 result<typename Parser::node_type> prefix(Parser& p, int bp, Make make) {
     result<typename Parser::node_type> operand = p.expression(bp);
     if (operand.has_error()) {
@@ -238,6 +246,7 @@ result<typename Parser::node_type> prefix(Parser& p, int bp, Make make) {
  @return The node, or the right operand's error.
 */
 template <class Parser, class Node, class Make>
+// NOLINTNEXTLINE(misc-no-recursion)
 result<typename Parser::node_type> infix_left(Parser& p, int bp, Node left, Make make) {
     result<typename Parser::node_type> right = p.expression(bp);
     if (right.has_error()) {
@@ -259,6 +268,7 @@ result<typename Parser::node_type> infix_left(Parser& p, int bp, Node left, Make
  @return The node, or the right operand's error.
 */
 template <class Parser, class Node, class Make>
+// NOLINTNEXTLINE(misc-no-recursion)
 result<typename Parser::node_type> infix_right(Parser& p, int bp, Node left, Make make) {
     result<typename Parser::node_type> right = p.expression(bp - 1);
     if (right.has_error()) {
@@ -289,6 +299,7 @@ auto postfix(Node left, Make make) -> decltype(make(std::move(left))) {
  @ref error::expected_closing_token.
 */
 template <class Parser, class IsClose>
+// NOLINTNEXTLINE(misc-no-recursion)
 result<typename Parser::node_type> grouping(Parser& p, IsClose is_close) {
     result<typename Parser::node_type> inner = p.expression(0);
     if (inner.has_error()) {
