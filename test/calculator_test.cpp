@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <numbers>
 #include <string>
 #include <string_view>
@@ -187,6 +188,27 @@ void an_integral_power_is_exact() {
     value_is(env, "(-1) ^ 10000000001", Number(-1));
 }
 
+/**
+ A negative integral power whose positive power overflows, or underflows to 0, is still the
+ nearest value: `pow` computes it, as no square can.
+
+ @param tiny The smallest positive value of `Number`, a subnormal.
+ @param tiny_exponent The integral power of two, negative, that is `tiny` in binary, or of ten in
+ decimal.
+*/
+template <class Number>
+void a_negative_power_past_the_range_is_still_computed(const Number& tiny,
+                                                       std::string_view tiny_exponent) {
+    calc::environment<Number> env;
+    value_is(env, tiny_exponent, tiny);
+    const auto huge = calc::evaluate("0.1 ^ -400", env);
+    if (!BOOST_TEST(huge.has_value())) {
+        std::cerr << "  in: 0.1 ^ -400 (" << huge.error().message() << ")\n";
+        return;
+    }
+    BOOST_TEST(*huge > std::numeric_limits<Number>::max());
+}
+
 /** Zero to the power zero is one, as every number to the power zero is. */
 template <class Number>
 void zero_to_the_zero_is_one() {
@@ -204,6 +226,28 @@ void zero_to_a_negative_power_divides_by_zero() {
     calc::environment<Number> env;
     error_is(env, "0 ^ -1", pratt::error::division_by_zero);
     error_is(env, "0 ^ -2", pratt::error::division_by_zero);
+}
+
+/**
+ In decimal, the parity of an exponent past the type's precision is even, as every such integer is
+ a multiple of ten, and the sign of the power follows it.
+
+ Tip: 9999999999999999 * 10 ^ 368 halves inexactly in 16 digits, and Boost.Decimal's fmod of it by
+ 2 is not 0; and 9999999999999999 is odd, though its half rounds to 5 * 10 ^ 15.
+*/
+void the_parity_of_a_huge_exponent_is_exact_in_decimal() {
+    calc::environment<decimal64_t> env;
+    value_is(env, "(-1) ^ (9999999999999999 * 10 ^ 368)", decimal64_t(1));
+    value_is(env, "(-1) ^ 9999999999999999", decimal64_t(-1));
+    value_is(env, "(-1) ^ 9999999999999998", decimal64_t(1));
+    value_is(env, "(-2) ^ -1", decimal64_t(-5, -1));
+}
+
+/** In double, a negative power past the range keeps the sign an odd exponent gives it. */
+void a_negative_base_keeps_its_sign_past_the_range() {
+    calc::environment<double> env;
+    value_is(env, "(-2) ^ -1073", -2 * std::numeric_limits<double>::denorm_min());
+    value_is(env, "(-2) ^ -1074", std::numeric_limits<double>::denorm_min());
 }
 
 /** 2^60 has 19 digits: exact in double, and in decimal64_t its 16 digits, rounded once. */
@@ -490,6 +534,12 @@ int main() {
     every_case<decimal64_t>();
     every_case<double>();
     two_to_the_sixty_is_exact();
+    a_negative_power_past_the_range_is_still_computed<double>(
+        std::numeric_limits<double>::denorm_min(), "2 ^ -1074");
+    a_negative_power_past_the_range_is_still_computed<decimal64_t>(decimal64_t(1, -385),
+                                                                   "10 ^ -385");
+    the_parity_of_a_huge_exponent_is_exact_in_decimal();
+    a_negative_base_keeps_its_sign_past_the_range();
     an_integral_power_squares_in_double();
     a_long_fraction_keeps_its_digits();
     a_fractional_power_goes_through_pow<decimal64_t>(decimal64_t(141421356237309, -14),

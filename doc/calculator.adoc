@@ -139,10 +139,19 @@ An integral power is computed by repeated squaring, in the number type's
 own multiplications, for exactness and determinism: every product is exact
 while it fits the type's precision, so `43 + 12 + 2 * (44 - 12) ^ 4` is
 exactly 2097207, and the result is the same bits on every platform, where
-a library's `pow` may round differently from one to the next. A negative
+a library's `pow` may round differently from one to the next. Past the
+precision, each product rounds, and the relative error grows with the
+exponent, where a correctly rounded `pow` would not: in `double`,
+`1.000000001 ^ 1000000000` differs from the result of `std::pow` in its
+ninth significant digit. That is the price of the same bits on every
+platform.
+
+The power's sign is the base's when the exponent is odd. A negative
 integral exponent is one divided by the positive power, so `2 ^ -3` is
-`0.125`, and `0 ^ 0` is 1. Only an exponent that is not an integer calls
-`pow`.
+`0.125`, and `0 ^ 0` is 1. When the positive power overflows, or underflows
+to 0, `pow` computes the result instead, so `2 ^ -1074` is the smallest
+positive `double` and `0.1 ^ -400` is an infinity. Otherwise only an
+exponent that is not an integer calls `pow`.
 
 Division by zero is an error, `division_by_zero`, for `/` and for `%`, and
 for `0 ^ -1`, which divides by zero too. A floating-point type would answer

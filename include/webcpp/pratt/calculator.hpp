@@ -600,12 +600,30 @@ bool is_integral(const Number& x) {
 }
 
 /**
+ Whether `x`, a finite integer, is odd.
+
+ Tip: an integer whose successor rounds back to it is past the type's
+ precision, so a multiple of its radix, 2 or 10, and even. Below that,
+ `fmod(x, 2)` is exact; past it, Boost.Decimal's is not:
+ `fmod(9999999999999999e368, 2)` gives -1e368.
+*/
+template <number Number>
+bool is_odd(const Number& x) {
+    if (Number(x + Number(1)) == x) {
+        return false;
+    }
+    return math::adl_fmod(x, Number(2)) != Number(0);
+}
+
+/**
  `base` to the power `exponent`, a finite integer at least 0, by repeated
  squaring in `Number`.
 
  Tip: each step halves the exponent with `trunc`, so a finite exponent ends
  within as many steps as its binary digits. Every product is exact while it
- fits the type's precision, so the result is exact whenever it does.
+ fits the type's precision, so the result is exact whenever it does. Past
+ the precision a half may round, which moves the exponent by a few units in
+ its last place, and the result by as much relatively.
 */
 template <number Number>
 Number power_by_squaring(Number base, Number exponent) {
@@ -629,19 +647,30 @@ Number power_by_squaring(Number base, Number exponent) {
  `base ^ exponent`: by repeated squaring for an integral exponent, through
  `pow` for any other.
 
- A negative integral exponent is `1 / base^|n|`, so `0 ^ -1` is `1 / 0`, and
- gives @ref error::division_by_zero as that division does. `x ^ 0` is 1 for
- every `x`, `0 ^ 0` included.
+ The square is of `|base|`, and the sign is the base's when the exponent is
+ odd, so a halving that rounds never changes it. A negative integral
+ exponent is `1 / |base|^|n|`; when that power is 0 or not finite, past the
+ type's range, `pow` computes the result instead, which is then a subnormal,
+ 0 or infinite. `0 ^ -n` gives @ref error::division_by_zero, as `1 / 0`
+ does, and `x ^ 0` is 1 for every `x`, `0 ^ 0` included.
 */
 template <number Number>
 result<Number> power(const Number& base, const Number& exponent) {
     if (!is_integral(exponent)) {
         return math::adl_pow(base, exponent);
     }
-    if (exponent >= Number(0)) {
-        return power_by_squaring(base, exponent);
+    const Number zero(0);
+    if (exponent < zero && base == zero) {
+        return {boost::system::in_place_error, error::division_by_zero};
     }
-    return divide(Number(1), power_by_squaring(base, Number(-exponent)));
+    const bool negative = base < zero && is_odd(exponent);
+    const Number magnitude = base < zero ? Number(-base) : base;
+    Number value = power_by_squaring(magnitude, exponent < zero ? Number(-exponent) : exponent);
+    if (exponent < zero) {
+        const bool out_of_range = value == zero || Number(value * zero) != zero;
+        value = out_of_range ? math::adl_pow(magnitude, exponent) : Number(Number(1) / value);
+    }
+    return negative ? Number(-value) : value;
 }
 
 }  // namespace detail
@@ -655,8 +684,12 @@ result<Number> power(const Number& base, const Number& exponent) {
  `-2 ^ 2 == -4`; `=` is right-associative, so `c = d = 5` sets both. A
  comparison gives 1 or 0. `++x` gives the new value and `x++` the old, as
  in C. An integral exponent is computed by repeated squaring in `Number`,
- so an integer power is exact while it fits the type's precision, and
- `x ^ -n` is `1 / x ^ n`; only a non-integral exponent calls `pow`.
+ so an integer power is exact while it fits the type's precision; past
+ that, the relative error grows with the exponent, where a correctly
+ rounded `pow` would not, which is the price of the same bits on every
+ platform. `x ^ -n` is `1 / x ^ n`, or `pow`'s result when `x ^ n`
+ overflows or underflows to 0; otherwise only a non-integral exponent
+ calls `pow`.
 
  The tokens are read one at a time, and the first error found in reading
  order is the one returned. A token's error is found when the token is

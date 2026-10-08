@@ -53,7 +53,8 @@ Two layers, kept apart:
 - **Exactness.** The calculator builds a number in the number type's own
   arithmetic, never through `double`; it computes an integral power by
   repeated squaring, for exactness and determinism, and calls `pow` only
-  for an exponent that is not an integer; division and remainder by zero
+  for an exponent that is not an integer, or for a negative one whose
+  positive power is out of the type's range; division and remainder by zero
   are `division_by_zero`. Its default number type is `decimal64_t`, for
   exactness.
 - **Allocation.** The engine and the calculator's parse allocate nothing;
