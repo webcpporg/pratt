@@ -625,6 +625,16 @@ public:
     explicit environment(const Allocator& allocator) : names_(map_allocator(allocator)) {}
 
     /**
+     The allocator the environment allocates through.
+
+     @return A copy of it, rebound back to `Allocator`, as an allocator-aware
+     standard container returns its own.
+    */
+    [[nodiscard]] allocator_type get_allocator() const noexcept {
+        return allocator_type(names_.get_allocator());
+    }
+
+    /**
      Finds the value of `name`.
 
      @param name The variable's name.

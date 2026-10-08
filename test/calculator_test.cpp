@@ -464,6 +464,9 @@ void the_environment_allocates_through_its_allocator() {
         using counted = calc::environment<decimal64_t, counting<char>>;
         static_assert(std::same_as<counted::allocator_type, counting<char>>);
         counted env{counting<char>(&count)};
+        static_assert(noexcept(env.get_allocator()));
+        static_assert(std::same_as<decltype(env.get_allocator()), counting<char>>);
+        BOOST_TEST(env.get_allocator().count() == &count);
         for (const std::string_view name : {first_long_name, second_long_name, third_long_name}) {
             const std::size_t before = count.allocations;
             BOOST_TEST(env.assign(name, decimal64_t(1)).has_value());
