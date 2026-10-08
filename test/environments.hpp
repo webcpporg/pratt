@@ -18,7 +18,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <memory>
+#include <cstdlib>
+#include <limits>
+#include <new>
 #include <string_view>
 
 namespace webcpp::test {
@@ -91,7 +93,10 @@ struct allocation_count {
 
 /**
  An allocator that counts its allocations and deallocations into an allocation_count, and takes
- the memory from std::allocator.
+ the memory from the global operator new.
+
+ Tip: the operator is called as a function, which a compiler may not elide, where it may elide
+ std::allocator's allocations; allocation_test compares this count with the operator's own.
 */
 template <class T>
 class counting {
@@ -104,13 +109,24 @@ public:
     explicit counting(const counting<U>& other) noexcept : count_(other.count()) {}
 
     T* allocate(std::size_t n) {
+        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+            std::abort();
+        }
         ++count_->allocations;
-        return std::allocator<T>{}.allocate(n);
+        if constexpr (over_aligned) {
+            return static_cast<T*>(::operator new(n * sizeof(T), std::align_val_t{alignof(T)}));
+        } else {
+            return static_cast<T*>(::operator new(n * sizeof(T)));
+        }
     }
 
-    void deallocate(T* pointer, std::size_t n) noexcept {
+    void deallocate(T* pointer, std::size_t /*n*/) noexcept {
         ++count_->deallocations;
-        std::allocator<T>{}.deallocate(pointer, n);
+        if constexpr (over_aligned) {
+            ::operator delete(pointer, std::align_val_t{alignof(T)});
+        } else {
+            ::operator delete(pointer);
+        }
     }
 
     [[nodiscard]] allocation_count* count() const noexcept { return count_; }
@@ -121,6 +137,9 @@ public:
     }
 
 private:
+    /** Whether T needs the aligned operator new, as std::allocator decides. */
+    static constexpr bool over_aligned = alignof(T) > __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+
     allocation_count* count_;
 };
 

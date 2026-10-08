@@ -10,6 +10,7 @@
 
 #include <webcpp/pratt/calculator.hpp>
 
+#include <boost/config.hpp>
 #include <boost/core/lightweight_test.hpp>
 #include <boost/decimal.hpp>
 
@@ -17,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <memory>
 #include <new>
 #include <string_view>
 
@@ -47,10 +47,11 @@ std::size_t global_allocations = 0;  // NOLINT(cppcoreguidelines-avoid-non-const
 // count every allocation, an over-aligned one included (a Number whose alignment is above
 // __STDCPP_DEFAULT_NEW_ALIGNMENT__ is allocated through the align_val_t forms). The standard
 // library declares them with parameter names reserved to the implementation, which a program may
-// not use, hence the exemption on each.
+// not use, hence the exemption on each. None is ever inlined: GCC, seeing the malloc or the free
+// inside one, would pair it with the other's call and warn of a mismatch (-Wmismatched-new-delete).
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void* operator new(std::size_t size) {
+BOOST_NOINLINE void* operator new(std::size_t size) {
     ++global_allocations;
     void* memory = std::malloc(size == 0 ? 1 : size);
     if (memory == nullptr) {
@@ -60,12 +61,12 @@ void* operator new(std::size_t size) {
 }
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* memory) noexcept {
+BOOST_NOINLINE void operator delete(void* memory) noexcept {
     std::free(memory);
 }
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* memory, std::size_t /*size*/) noexcept {
+BOOST_NOINLINE void operator delete(void* memory, std::size_t /*size*/) noexcept {
     std::free(memory);
 }
 
@@ -102,7 +103,7 @@ void free_aligned_memory(void* memory) noexcept {
 
 /** The aligned allocation, from aligned_memory. */
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void* operator new(std::size_t size, std::align_val_t alignment) {
+BOOST_NOINLINE void* operator new(std::size_t size, std::align_val_t alignment) {
     ++global_allocations;
     void* memory = aligned_memory(size, static_cast<std::size_t>(alignment));
     if (memory == nullptr) {
@@ -112,12 +113,13 @@ void* operator new(std::size_t size, std::align_val_t alignment) {
 }
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* memory, std::align_val_t /*alignment*/) noexcept {
+BOOST_NOINLINE void operator delete(void* memory, std::align_val_t /*alignment*/) noexcept {
     free_aligned_memory(memory);
 }
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
-void operator delete(void* memory, std::size_t /*size*/, std::align_val_t /*alignment*/) noexcept {
+BOOST_NOINLINE void operator delete(void* memory, std::size_t /*size*/,
+                                    std::align_val_t /*alignment*/) noexcept {
     free_aligned_memory(memory);
 }
 
@@ -192,15 +194,20 @@ struct alignas(2 * __STDCPP_DEFAULT_NEW_ALIGNMENT__) over_aligned {
     std::array<char, 2 * __STDCPP_DEFAULT_NEW_ALIGNMENT__> bytes{};
 };
 
-/** An over-aligned allocation goes through the replaced aligned operator new, and is counted. */
+/**
+ An over-aligned allocation goes through the replaced aligned operator new, and is counted.
+
+ Tip: the operator is called as a function, which a compiler may not elide; GCC elides an
+ allocation through std::allocator, or a new-expression, whose memory does not escape.
+*/
 void an_over_aligned_allocation_is_counted() {
-    std::allocator<over_aligned> allocator;
+    constexpr std::align_val_t alignment{alignof(over_aligned)};
     const std::size_t before = global_allocations;
-    over_aligned* object = allocator.allocate(3);
+    void* memory = ::operator new(3 * sizeof(over_aligned), alignment);
     const std::size_t after = global_allocations;
     BOOST_TEST_EQ(after - before, 1U);
-    BOOST_TEST_EQ(reinterpret_cast<std::uintptr_t>(object) % alignof(over_aligned), 0U);
-    allocator.deallocate(object, 3);
+    BOOST_TEST_EQ(reinterpret_cast<std::uintptr_t>(memory) % alignof(over_aligned), 0U);
+    ::operator delete(memory, alignment);
 }
 
 }  // namespace
