@@ -12,5 +12,6 @@
 #define WEBCPP_PRATT_HPP
 
 #include <webcpp/pratt/errors.hpp>
+#include <webcpp/pratt/parser.hpp>
 
 #endif  // WEBCPP_PRATT_HPP

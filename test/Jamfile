@@ -13,3 +13,5 @@ webcpp.targets native wasip2 wasip3 ;
 webcpp.headers-alone pratt : ../include ;
 
 webcpp.run errors : errors_test.cpp ;
+webcpp.run engine : engine_test.cpp ;
+webcpp.run sexpr : sexpr_test.cpp ;
