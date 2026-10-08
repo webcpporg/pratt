@@ -321,6 +321,51 @@ void a_subnormal_fraction_lexes_to_its_value() {
     BOOST_TEST(number_of<decimal64_t>("0." + std::string(390, '0') + "1") == decimal64_t(1, -391));
 }
 
+/** `x` written out in full, every digit of its integer part, as std::to_chars writes it. */
+std::string in_full(double x) {
+    std::string text(400, '\0');
+    const std::to_chars_result written =
+        std::to_chars(text.data(), text.data() + text.size(), x, std::chars_format::fixed);
+    require(BOOST_TEST(written.ec == std::errc{}));
+    text.resize(static_cast<std::size_t>(written.ptr - text.data()));
+    return text;
+}
+
+/** Whether `got` is finite and at most four units in the last place from `nearest`. */
+bool within_four_ulps(double got, double nearest) {
+    double below = nearest;
+    double above = nearest;
+    for (int i = 0; i < 4; ++i) {
+        below = std::nextafter(below, -std::numeric_limits<double>::infinity());
+        above = std::nextafter(above, std::numeric_limits<double>::infinity());
+    }
+    return std::isfinite(got) && below <= got && got <= above;
+}
+
+/**
+ A literal at the top of double's range is finite, near the nearest double, though its digits are
+ scaled up by ten to the 292nd: the largest double written out in full, all 309 digits, and a
+ literal of 17 digits and 292 zeros a few units below it.
+*/
+void a_literal_at_the_top_of_the_range_is_finite_in_double() {
+    const std::string largest = in_full(std::numeric_limits<double>::max());
+    require(BOOST_TEST_EQ(largest.size(), 309U));
+    BOOST_TEST(within_four_ulps(number_of<double>(largest), std::numeric_limits<double>::max()));
+    const std::string below = "17976931348623146" + std::string(292, '0');
+    BOOST_TEST(within_four_ulps(number_of<double>(below), double_from_chars(below)));
+}
+
+/** A literal just past the largest double, `1` and 309 zeros, is infinite. */
+void a_literal_past_the_top_of_the_range_is_infinite_in_double() {
+    BOOST_TEST(is_infinite(number_of<double>("1" + std::string(309, '0'))));
+}
+
+/** The largest decimal64_t written out in full, 16 nines and 369 zeros, lexes to it exactly. */
+void the_largest_decimal_lexes_to_it_exactly() {
+    BOOST_TEST(number_of<decimal64_t>(std::string(16, '9') + std::string(369, '0')) ==
+               std::numeric_limits<decimal64_t>::max());
+}
+
 template <class Number>
 void spaces_tabs_and_line_ends_are_whitespace() {
     using calc::kind;
@@ -393,5 +438,8 @@ int main() {
     a_long_integer_is_within_one_ulp_in_double();
     a_long_integer_is_within_one_ulp_in_decimal();
     a_subnormal_fraction_lexes_to_its_value();
+    a_literal_at_the_top_of_the_range_is_finite_in_double();
+    a_literal_past_the_top_of_the_range_is_infinite_in_double();
+    the_largest_decimal_lexes_to_it_exactly();
     return boost::report_errors();
 }

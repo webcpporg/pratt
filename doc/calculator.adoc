@@ -139,8 +139,9 @@ A literal longer than the type's precision keeps its first 17 significant
 digits in `decimal64_t` and in `double` (`digits10 + 1`, or `max_digits10`
 where that is more): a later digit of the integer part multiplies the value
 by ten, and a later digit of the fraction is dropped. So `1.` followed by
-any number of zeros is exactly 1, and `1` followed by 400 zeros is an
-infinity. A long literal is within one unit in the last place of the
+any number of zeros is exactly 1, a literal up to the type's largest value
+is finite, the largest `double` written out in full included, and `1`
+followed by 400 zeros is an infinity. A long literal is within one unit in the last place of the
 nearest `decimal64_t`, and within a few of the nearest `double`, whose
 digits round as they are read. A fraction keeps its value down to the
 type's smallest subnormal, and is 0 below it.

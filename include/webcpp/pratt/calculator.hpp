@@ -250,13 +250,12 @@ constexpr bool is_whitespace(char c) noexcept {
 }
 
 /**
- Ten to the power `n`, by repeated squaring in `Number`: exact while it fits
- the type's precision, and infinite past its range.
+ `base` to the power `n`, by repeated squaring in `Number`: exact while it
+ fits the type's precision, and infinite past its range.
 */
 template <number Number>
-Number ten_to(std::size_t n) {
+Number power_of(Number base, std::size_t n) {
     Number result(1);
-    Number base(10);
     while (n != 0) {
         if (n % 2 != 0) {
             result = result * base;
@@ -264,6 +263,97 @@ Number ten_to(std::size_t n) {
         n /= 2;
         if (n != 0) {
             base = base * base;
+        }
+    }
+    return result;
+}
+
+/**
+ A value held as the unevaluated sum `high + low` of two numbers of a
+ binary type, `low` at most half a unit in the last place of `high`: about
+ twice the type's precision.
+*/
+template <number Number>
+struct twofold {
+    /** The value rounded to the type's precision. */
+    Number high;
+    /** The rest of the value, below the last place of `high`. */
+    Number low;
+};
+
+/**
+ `a` as the sum of two halves of its significand, each of at most half the
+ type's digits, so that the product of two halves is exact (Dekker's split).
+
+ @pre `a` times 2 to the half of the type's digits is finite.
+*/
+template <number Number>
+twofold<Number> split(Number a) {
+    using limits = std::numeric_limits<Number>;
+    const Number factor =
+        power_of(Number(2), static_cast<std::size_t>((limits::digits + 1) / 2)) + Number(1);
+    const Number scaled = factor * a;
+    const Number rest = scaled - a;
+    const Number high = scaled - rest;
+    return {high, a - high};
+}
+
+/**
+ `a * b` as its rounded product and the exact error of that rounding
+ (Dekker's product).
+
+ Tip: every operation is a statement of its own, so that no compiler
+ contracts one into a fused multiply-add, which would make the error
+ inexact differently on each target.
+ @pre `a` and `b` meet the precondition of @ref split.
+*/
+template <number Number>
+twofold<Number> exact_product(Number a, Number b) {
+    const Number product = a * b;
+    const twofold<Number> x = split(a);
+    const twofold<Number> y = split(b);
+    Number error = x.high * y.high;
+    error = error - product;
+    Number term = x.high * y.low;
+    error = error + term;
+    term = x.low * y.high;
+    error = error + term;
+    term = x.low * y.low;
+    error = error + term;
+    return {product, error};
+}
+
+/** The product of `x` and `y`, to about twice the type's precision. */
+template <number Number>
+twofold<Number> twofold_product(twofold<Number> x, twofold<Number> y) {
+    const twofold<Number> product = exact_product(x.high, y.high);
+    Number low = product.low;
+    Number term = x.high * y.low;
+    low = low + term;
+    term = x.low * y.high;
+    low = low + term;
+    const Number high = product.high + low;
+    const Number carried = high - product.high;
+    low = low - carried;
+    return {high, low};
+}
+
+/**
+ `base` to the power `n`, by repeated squaring to about twice the type's
+ precision, so that its error does not grow past half a unit in the last
+ place of `Number`.
+*/
+template <number Number>
+twofold<Number> twofold_power(Number base, std::size_t n) {
+    twofold<Number> result{Number(1), Number(0)};
+    twofold<Number> square{base, Number(0)};
+    while (n != 0) {
+        if (n % 2 != 0) {
+            result = twofold_product(result, square);
+        }
+        n /= 2;
+        if (n != 0) {
+            square = twofold_product(square, square);
         }
     }
     return result;
@@ -315,21 +405,28 @@ public:
 
      Tip: where that power of ten is infinite but the value is not, a
      subnormal, the division is made in steps of the largest finite power.
+     In a binary type, the value is scaled up in two steps, by five to the
+     power and then by two to it, as @ref scaled_up_in_binary says.
     */
     [[nodiscard]] Number value() const {
         if (scale_down_ == 0) {
-            return Number(mantissa_ * ten_to<Number>(scale_up_));
+            if constexpr (is_binary) {
+                if (scale_up_ != 0 && scale_up_ <= largest_power) {
+                    return scaled_up_in_binary();
+                }
+            }
+            return Number(mantissa_ * power_of(Number(10), scale_up_));
         }
         Number value = mantissa_;
         std::size_t remaining = scale_down_;
         if (remaining > largest_power) {
-            const auto step = ten_to<Number>(largest_power);
+            const auto step = power_of(Number(10), largest_power);
             while (remaining > largest_power && value != Number(0)) {
                 value = value / step;
                 remaining -= largest_power;
             }
         }
-        return Number(value / ten_to<Number>(remaining));
+        return Number(value / power_of(Number(10), remaining));
     }
 
 private:
@@ -350,6 +447,31 @@ private:
         limits::is_specialized && limits::max_exponent10 > 0
             ? static_cast<std::size_t>(limits::max_exponent10)
             : std::numeric_limits<std::size_t>::max();
+
+    /** Whether `Number` is a binary floating-point type, as `double` is. */
+    static constexpr bool is_binary =
+        limits::is_specialized && !limits::is_integer && limits::radix == 2;
+
+    /**
+     The mantissa times ten to `scale_up_`, in a binary type: times five to
+     that power, held to twice the type's precision, then times two to it,
+     which is exact.
+
+     Tip: ten to a large power by repeated squaring in `Number` is a few
+     units in the last place away, enough that the largest `double`
+     written out in full would overflow; here only the multiplication by
+     five to the power rounds, once, and the value overflows only when the
+     product rounded at the type's precision is past the range.
+     @pre `0 < scale_up_ <= largest_power`.
+    */
+    [[nodiscard]] Number scaled_up_in_binary() const {
+        const twofold<Number> power = twofold_power(Number(5), scale_up_);
+        const twofold<Number> product = exact_product(mantissa_, power.high);
+        Number low = mantissa_ * power.low;
+        low = low + product.low;
+        const Number scaled = product.high + low;
+        return Number(scaled * power_of(Number(2), scale_up_));
+    }
 
     void keep(int digit) {
         mantissa_ = mantissa_ * Number(10);
@@ -387,9 +509,11 @@ private:
  nearest value; a longer one is within one unit in the last place of it in
  `decimal64_t`, and may be a few units away in `double`, whose digits
  round as they are read. `1.` followed by any number of zeros is exactly
- 1; `1` followed by 400 zeros is infinite; and a fraction keeps its value
- down to the type's smallest subnormal, and is 0 below it. A type without
- `std::numeric_limits` keeps every digit.
+ 1; a literal up to the type's largest value is finite, the largest
+ `double` written out in full included, and `1` followed by 400 zeros is
+ infinite; and a fraction keeps its value down to the type's smallest
+ subnormal, and is 0 below it. A type without `std::numeric_limits` keeps
+ every digit.
 
  A non-ASCII character is a token of kind @ref kind::invalid per byte, so
  the parse stops at its first byte with @ref error::invalid_character.
