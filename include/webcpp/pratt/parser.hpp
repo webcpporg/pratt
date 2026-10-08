@@ -22,10 +22,24 @@ namespace webcpp::pratt {
  The deepest nesting of @ref parser::expression calls a parse allows unless
  told otherwise.
 
- @note Provisional: the value is to be measured on wasm's default stack, in
- a debug build, with the calculator's frames.
+ The value is measured, not chosen: the largest power of two at most half
+ the deepest calculator parse that wasm's default stack of 64 KiB holds on
+ wasip2 and wasip3 in a debug build (`-O0 -fno-inline`). The deepest N that
+ ran without a trap, over `calc::environment<>`, with wasi-sdk 34 (clang
+ 23.1.0) and wasmtime 47.0.3, and the stack divided by N:
+
+ | Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8 MiB |
+ | ------------------------- | -------------------- | ------------ | ------------------- |
+ | `((...(1)...))`           | 188 (349 B)          | 338 (194 B)  | 15367 (545 B)       |
+ | `- - ... - 1`             | 179 (366 B)          | 338 (194 B)  | 15367 (545 B)       |
+ | `2 ^ 2 ^ ... ^ 2`         | 71 (923 B)           | 270 (243 B)  | 7256 (1154 B)       |
+
+ Half of 71 is 35, hence 32. A program that raises the limit raises its
+ stack with it (`-Wl,-z,stack-size=` on wasm, the thread's stack natively):
+ in a debug build on wasm, a level of `^` costs 862 bytes and a level of
+ grouping 336, plus at most about 4.5 KiB that a parse needs at any depth.
 */
-inline constexpr int default_max_depth = 64;
+inline constexpr int default_max_depth = 32;
 
 /**
  A source of tokens: the next one is read by `peek` and consumed by

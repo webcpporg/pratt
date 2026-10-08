@@ -18,3 +18,4 @@ webcpp.run sexpr : sexpr_test.cpp ;
 webcpp.run lexer : lexer_test.cpp ;
 webcpp.run calculator : calculator_test.cpp ;
 webcpp.run allocation : allocation_test.cpp ;
+webcpp.run depth : depth_test.cpp ;
