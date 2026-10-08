@@ -141,9 +141,9 @@ where that is more): a later digit of the integer part multiplies the value
 by ten, and a later digit of the fraction is dropped. So `1.` followed by
 any number of zeros is exactly 1, a literal up to the type's largest value
 is finite, the largest `double` written out in full included, and `1`
-followed by 400 zeros is an infinity. A long literal is within one unit in the last place of the
-nearest `decimal64_t`, and within a few of the nearest `double`, whose
-digits round as they are read. A fraction keeps its value down to the
+followed by 400 zeros is an infinity. A long literal is within one unit
+in the last place of the nearest `decimal64_t`, and within a few of the
+nearest `double`, whose digits round as they are read. A fraction keeps its value down to the
 type's smallest subnormal, and is 0 below it.
 
 An integral power is computed by repeated squaring, in the number type's
@@ -156,6 +156,12 @@ exponent, where a correctly rounded `pow` would not: in `double`,
 `1.000000001 ^ 1000000000` differs from the result of `std::pow` in its
 ninth significant digit. That is the price of the same bits on every
 platform.
+
+The same bits assume each compiler's default for fusing a multiplication
+and an addition, which every operation of the calculator keeps apart in
+statements of their own. Built with `-ffp-contract=fast` or
+`-ffast-math`, a compiler may fuse them anyway, and a `double` result may
+then differ in its last place from one platform to another.
 
 The power's sign is the base's when the exponent is odd. A negative
 integral exponent is one divided by the positive power, so `2 ^ -3` is
