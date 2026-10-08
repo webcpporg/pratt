@@ -16,6 +16,7 @@
 #include <iostream>
 #include <ostream>
 #include <string_view>
+#include <system_error>
 
 #include "repl.hpp"
 
@@ -25,12 +26,17 @@ namespace calc = webcpp::pratt::calc;
 
 /**
  Writes `value` to `out` in Boost.Decimal's shortest round-tripping form:
- `2097207`, `1048503.5`, with its sign for a negative value.
+ `2097207`, `1048503.5`, with its sign for a negative value, or `error: `
+ and the reason when it does not fit the buffer.
 */
 void print(const calc::environment<>::number_type& value, std::ostream& out) {
     std::array<char, 48> buffer{};
     const boost::decimal::to_chars_result written =
         boost::decimal::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
+    if (written.ec != std::errc{}) {
+        out << "error: " << std::make_error_code(written.ec).message();
+        return;
+    }
     out.write(buffer.data(), written.ptr - buffer.data());
 }
 

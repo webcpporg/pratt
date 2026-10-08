@@ -161,8 +161,9 @@ private:
         }
     }
 
-    /** Lexes a token of kind `k`: the character at the position, and those after it `more` accepts.
-     */
+    /**
+     Lexes a token of kind `k`: the character at the position, and those after it `more` accepts.
+    */
     template <class More>
     token lex_while(kind k, More more) {
         const std::size_t start = pos_;

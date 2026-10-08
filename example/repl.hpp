@@ -23,7 +23,7 @@ namespace webcpp::example {
 
  A line's one trailing carriage return is dropped, so a line that ends in a
  carriage return and a line feed reads as one that ends in a line feed. A
- line that is empty or holds only spaces is skipped, without calling
+ line that is empty or holds only spaces or tabs is skipped, without calling
  `process_line`. `exit ` with a trailing space is an ordinary line, the name
  `exit`, not the one that ends the session; nothing after the line `exit` is
  read.
@@ -45,7 +45,7 @@ int repl(std::istream& in, std::ostream& out, ProcessLine process_line) {
         if (line == "exit") {
             return 0;
         }
-        if (line.find_first_not_of(' ') == std::string::npos) {
+        if (line.find_first_not_of(" \t") == std::string::npos) {
             continue;
         }
         process_line(std::string_view(line), out);

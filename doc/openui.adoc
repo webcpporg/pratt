@@ -87,7 +87,7 @@ Two programs read lines from their standard input and answer each one:
 S-expression, and `calculator_repl` evaluates it with the calculator, in one
 environment for the whole session. Both share one loop, in
 `example/repl.hpp`, which drops the carriage return of a line that ends in
-one, skips a line that is empty or holds only spaces, and ends at the line
+one, skips a line that is empty or holds only spaces or tabs, and ends at the line
 `exit`, exactly, or at the end of the input, with the status 0:
 
 [source]
@@ -104,8 +104,9 @@ include::{examples}/openui_repl.cpp[tag=main,indent=0]
 ----
 
 Its build feeds it `openui_repl.input`, a session whose tenth line ends in a
-carriage return and a line feed, whose eleventh holds only four spaces, and
-whose twelfth is `exit` and a space, a name to parse rather than the end:
+carriage return and a line feed, whose eleventh holds only four spaces,
+whose twelfth only a tab, a space and a tab, and whose thirteenth is `exit`
+and a space, a name to parse rather than the end:
 
 [listing]
 ----
