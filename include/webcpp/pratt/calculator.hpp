@@ -71,8 +71,8 @@ auto adl_trunc(const N& a) -> decltype(trunc(a)) {
 
  It is copyable and constructible from `int`; it has the binary `+ - * /`,
  the unary `-` and the six comparisons; and `pow(a, b)`, `fmod(a, b)` and
- `trunc(a)`, found by ADL after `using std::pow; using std::fmod;
- using std::trunc;`, so `boost::decimal`'s overloads serve its types and
+ `trunc(a)`, found by ADL after `using std::pow;`, `using std::fmod;` and
+ `using std::trunc;`, so `boost::decimal`'s overloads serve its types and
  std's serve the builtin floating-point types.
 
  @tparam N The type the calculator would compute in.
@@ -166,7 +166,7 @@ enum class kind {
     decrement,
 
     /**
-     A character no token starts with, one character long.
+     A character the lexer reads as no token, one character long.
 
      A non-ASCII character is several bytes of UTF-8, each a token of this
      kind, so a parse stops at its first byte.
@@ -251,9 +251,10 @@ constexpr bool is_whitespace(char c) noexcept {
 }  // namespace detail
 
 /**
- The calculator's lexer, a lazy @ref webcpp::pratt::token_stream. It holds
- the source, its position and one token of lookahead, and lexes the next
- token only when @ref advance consumes the current one.
+ The calculator's lexer, a lazy @ref webcpp::pratt::token_stream.
+
+ It holds the source, its position and one token of lookahead, and lexes the
+ next token only when @ref advance consumes the current one.
 
  A number is digits, then optionally `.` and more digits; it is computed in
  `Number` arithmetic alone, never through `double`, so `0.1` is exactly one
@@ -262,11 +263,13 @@ constexpr bool is_whitespace(char c) noexcept {
  other character is a token of kind @ref kind::invalid, one character long,
  which the grammar rejects where it stands.
 
- A number's digits are exact while the mantissa fits the type's precision,
- and each further digit rounds. A fraction of hundreds of digits makes ten
- to their number overflow the type, past about 308 digits in `double` and
- 384 in `decimal64_t`, and the literal lexes as 0, or as NaN when its
- mantissa overflows too. A non-ASCII character is a token of kind
+ A number's digits, read as one integer, are exact while they fit the
+ type's precision, and round past it, until they overflow the type. An
+ integer part above the type's largest value, which has 309 digits in
+ `double` and 385 in `decimal64_t`, lexes as infinity. A fraction of 309
+ digits or more in `double`, or 385 in `decimal64_t`, makes ten to their
+ number infinite, so the literal lexes as 0, or as NaN when its digits,
+ read as one integer, are infinite too. A non-ASCII character is a token of kind
  @ref kind::invalid per byte, so the parse stops at its first byte with
  @ref error::invalid_character.
 
@@ -472,9 +475,12 @@ concept environment_for = requires(E e, const E ce, std::string_view n, E::numbe
  It allocates in @ref assign alone, when a name is new: the map's node, and
  the key's characters when the name is longer than the string's small
  buffer, both through `Allocator`. Assigning a name it holds replaces the
- value in place, and @ref lookup allocates nothing. Nothing else that
+ value in place, and @ref lookup allocates nothing. For a `Number` that
+ allocates nothing, such as `decimal64_t` or `double`, nothing else that
  @ref evaluate does allocates, so this environment's allocator is the
- calculator's only source of memory.
+ calculator's only source of memory. A `Number` whose arithmetic allocates,
+ Boost.Multiprecision's `mpfr_float` with `et_off` for instance, allocates
+ through its own allocator.
 
  The key is a `std::basic_string` whose allocator is `Allocator` rebound to
  `char`, and the map's allocator is `Allocator` rebound to the map's value
@@ -646,16 +652,17 @@ result<Number> power(const Number& base, const Number& exponent) {
  `-2 ^ 2 == -4`; `=` is right-associative, so `c = d = 5` sets both. A
  comparison gives 1 or 0. `++x` gives the new value and `x++` the old, as
  in C. An integral exponent is computed by repeated squaring in `Number`,
- so an integer power is exact while it fits the type's precision, and a
- negative one is `1 / x^|n|`; only a non-integral exponent calls `pow`.
+ so an integer power is exact while it fits the type's precision, and
+ `x ^ -n` is `1 / x ^ n`; only a non-integral exponent calls `pow`.
 
  The tokens are read one at a time, and the first error found in reading
- order is the one returned. A token's error is found when the token is read, and an
- operator's when the operator has its operands: `=` checks its target before
- it reads its right operand, so `5 = 3 $` gives
- @ref error::invalid_assignment_target, while `+` finds an undefined operand
- or `/` a zero divisor only after its right operand is read, so `x + 1 $`
- gives @ref error::invalid_character even when `x` is undefined.
+ order is the one returned. A token's error is found when the token is
+ read, and an operator's when the operator has its operands: `=` checks its
+ target before it reads its right operand, so `5 = 3 $` gives
+ @ref error::invalid_assignment_target, while `+` finds an undefined
+ operand, or `/` a zero divisor, only after its right operand is read, so
+ `x + 1 $` gives @ref error::invalid_character even when `x` is undefined,
+ and so does `1 / 0 $`.
 
  A write made before the error stays made: nothing is undone. `i++ $`
  increments `i`, then gives @ref error::invalid_character, and `i++ )`
@@ -956,8 +963,11 @@ private:
  Evaluates `source` as one expression of the calculator, reading and
  writing its variables in `env`.
 
- Nothing is allocated but what `env` allocates to store a name: the lexer,
- the tokens and the nodes are views and numbers.
+ For a `Number` that allocates nothing, such as `decimal64_t` or `double`,
+ nothing is allocated but what `env` allocates to store a name: the lexer,
+ the tokens and the nodes are views and numbers. A `Number` whose
+ arithmetic allocates, Boost.Multiprecision's `mpfr_float` with `et_off`
+ for instance, allocates through its own allocator.
 
  The first error found in reading order is the one returned, and the writes
  made before it stay made, as @ref grammar says: a failed evaluation may have

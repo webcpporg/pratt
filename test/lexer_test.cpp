@@ -5,14 +5,15 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Tests the calculator's number concept and its lazy lexer, over decimal64_t and over double: the
-// kinds, texts and values of the tokens, numbers built in the number type's own arithmetic, the
-// invalid token, whitespace, and the end token that stays.
+// kinds, texts and values of the tokens, numbers built in the number type's own arithmetic and
+// past its range, the invalid token, whitespace, and the end token that stays.
 
 #include <webcpp/pratt/calculator.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/decimal.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -226,6 +227,53 @@ void an_unknown_character_is_one_invalid_token() {
                           });
 }
 
+/** A non-ASCII character, `e` with an acute accent in UTF-8, is one invalid token per byte. */
+template <class Number>
+void a_non_ascii_character_is_one_invalid_token_per_byte() {
+    using calc::kind;
+    lexes_to<Number>("\xC3\xA9", {
+                                     {kind::invalid, "\xC3", Number(0)},
+                                     {kind::invalid, "\xA9", Number(0)},
+                                 });
+}
+
+/** Whether `x` is infinite, by the two-step call that finds boost::decimal's isinf or std's. */
+template <class Number>
+bool is_infinite(const Number& x) {
+    using std::isinf;
+    return isinf(x);
+}
+
+/** Whether `x` is NaN, by the two-step call that finds boost::decimal's isnan or std's. */
+template <class Number>
+bool is_nan(const Number& x) {
+    using std::isnan;
+    return isnan(x);
+}
+
+/**
+ Past the type's range, a literal lexes as infinity, 0 or NaN, at the digit counts the lexer's
+ Doc Comment states.
+
+ Tip: `digits` is the first count of digits ten to which overflows the type, 309 in double and
+ 385 in decimal64_t. An integer part of that many digits after a 1 is infinite, and one digit
+ fewer is not; a fraction of that many digits makes the divisor infinite, so a mantissa of 1
+ lexes as 0, while that many ones overflow the mantissa too, and lex as NaN.
+*/
+template <class Number>
+void a_number_past_the_range_is_infinite_zero_or_nan(std::size_t digits) {
+    const std::string at_range = "1" + std::string(digits - 1, '0');
+    BOOST_TEST(!is_infinite(number_of<Number>(at_range)));
+    BOOST_TEST(is_infinite(number_of<Number>(at_range + "0")));
+
+    const std::string tiny = "0." + std::string(digits - 2, '0') + "1";
+    BOOST_TEST(number_of<Number>(tiny) != Number(0));
+    BOOST_TEST(number_of<Number>("0." + std::string(digits - 1, '0') + "1") == Number(0));
+
+    BOOST_TEST(number_of<Number>("0." + std::string(digits, '1')) == Number(0));
+    BOOST_TEST(is_nan(number_of<Number>("0." + std::string(digits + 1, '1'))));
+}
+
 template <class Number>
 void spaces_tabs_and_line_ends_are_whitespace() {
     using calc::kind;
@@ -278,6 +326,7 @@ void every_case() {
     a_name_is_letters_digits_and_underscores<Number>();
     a_point_without_a_digit_after_it_is_invalid<Number>();
     an_unknown_character_is_one_invalid_token<Number>();
+    a_non_ascii_character_is_one_invalid_token_per_byte<Number>();
     spaces_tabs_and_line_ends_are_whitespace<Number>();
     the_end_token_stays<Number>();
     peek_does_not_consume<Number>();
@@ -291,5 +340,7 @@ int main() {
     every_case<double>();
     a_decimal_fraction_is_exact_in_decimal();
     a_double_fraction_is_the_nearest_double();
+    a_number_past_the_range_is_infinite_zero_or_nan<decimal64_t>(385);
+    a_number_past_the_range_is_infinite_zero_or_nan<double>(309);
     return boost::report_errors();
 }

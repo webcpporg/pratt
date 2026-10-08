@@ -346,6 +346,10 @@ void the_first_error_in_reading_order_wins_and_earlier_writes_stay() {
     BOOST_TEST(value_of(env, "i") == Number(2));
     error_is(env, "i++ )", pratt::error::trailing_input);
     BOOST_TEST(value_of(env, "i") == Number(3));
+    // An operator finds its own error only once it has its operands, after a later character.
+    BOOST_TEST(env.lookup("x") == nullptr);
+    error_is(env, "x + 1 $", pratt::error::invalid_character);
+    error_is(env, "1 / 0 $", pratt::error::invalid_character);
 }
 
 /** `evaluate` hands its depth limit to the engine: `((1))` makes three expression calls. */

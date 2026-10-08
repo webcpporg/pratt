@@ -329,6 +329,11 @@ void the_depth_is_bounded_by_max_depth() {
     const pratt::result<std::string> none = pratt::parse(table{}, sexpr::stream("a"), 0);
     require(BOOST_TEST(none.has_error()));
     BOOST_TEST(none.error() == pratt::error::nesting_too_deep);
+
+    // A negative limit behaves as 0.
+    const pratt::result<std::string> negative = pratt::parse(table{}, sexpr::stream("a"), -1);
+    require(BOOST_TEST(negative.has_error()));
+    BOOST_TEST(negative.error() == pratt::error::nesting_too_deep);
 }
 
 /** Parses `source` with `max_depth` and expects `expected`. */

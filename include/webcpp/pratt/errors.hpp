@@ -56,7 +56,7 @@ enum class error : int {
     /** A name is read before anything has written it. */
     undefined_variable = 6,
 
-    /** A character starts no token the lexer knows. */
+    /** A character the lexer reads as no token, such as `$`, or `!` without `=`. */
     invalid_character = 7,
 
     /** A parse recursed past the parser's configured depth limit. */

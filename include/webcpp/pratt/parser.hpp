@@ -20,29 +20,28 @@
 
 namespace webcpp::pratt {
 
+// The measurement, which the guide's "Limits" repeats: the deepest N that ran without a trap,
+// over calc::environment<>, with wasi-sdk 34 (clang 23.1.0) and wasmtime 47.0.3, and the stack
+// divided by N.
+//
+// | Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8 MiB |
+// | ------------------------- | -------------------- | ------------ | ------------------- |
+// | `((...(1)...))`           | 188 (349 B)          | 338 (194 B)  | 15367 (545 B)       |
+// | `- - ... - 1`             | 179 (366 B)          | 338 (194 B)  | 15367 (545 B)       |
+// | `2 ^ 2 ^ ... ^ 2`         | 71 (923 B)           | 270 (243 B)  | 7256 (1154 B)       |
+//
+// Half of 71 is 35, hence 32. In a debug build on wasm, a level of `^` costs 862 bytes and a
+// level of grouping 336, plus at most about 4.5 KiB that a parse needs at any depth.
+
 /**
  The deepest nesting of @ref parser::expression calls a parse allows unless
  told otherwise.
 
- The value is measured, not chosen: the largest power of two at most half
- the deepest calculator parse that wasm's default stack of 64 KiB holds on
- wasip2 and wasip3 in a debug build (`-O0 -fno-inline`). The deepest N that
- ran without a trap, over `calc::environment<>`, with wasi-sdk 34 (clang
- 23.1.0) and wasmtime 47.0.3, and the stack divided by N:
+ It is measured, not chosen: the largest power of two at most half the
+ deepest calculator parse that wasm's default stack of 64 KiB holds in a
+ debug build. A program that raises the limit raises its stack with it,
+ with `-Wl,-z,stack-size=` on wasm and the thread's stack natively.
 
- | Shape, N operators or `(` | wasip2, wasip3 `-O0` | wasip2 `-O2` | native `-O0`, 8 MiB |
- | ------------------------- | -------------------- | ------------ | ------------------- |
- | `((...(1)...))`           | 188 (349 B)          | 338 (194 B)  | 15367 (545 B)       |
- | `- - ... - 1`             | 179 (366 B)          | 338 (194 B)  | 15367 (545 B)       |
- | `2 ^ 2 ^ ... ^ 2`         | 71 (923 B)           | 270 (243 B)  | 7256 (1154 B)       |
-
- Half of 71 is 35, hence 32. A program that raises the limit raises its
- stack with it (`-Wl,-z,stack-size=` on wasm, the thread's stack natively):
- in a debug build on wasm, a level of `^` costs 862 bytes and a level of
- grouping 336, plus at most about 4.5 KiB that a parse needs at any depth.
-
- @note The limit bounds the recursion through @ref parser::expression
- alone, as @ref parser says.
  @see "Limits", in the guide.
 */
 inline constexpr int default_max_depth = 32;
@@ -54,7 +53,7 @@ inline constexpr int default_max_depth = 32;
  The parser reads `peek` to decide whether the next token extends an
  expression, calls `advance` once for each token it hands a nud or a led,
  and asks `at_end` once the whole expression is parsed. A stream may lex
- lazily, one token ahead, as @ref calc::stream does.
+ lazily, one token ahead, as the calculator's lexer, `calc::stream`, does.
 
  @tparam S The stream's type, which names its tokens `token_type`.
  @note `peek` must stay valid at the end of the input, returning a token
@@ -82,7 +81,8 @@ class parser;
  their operands through @ref parser::expression or the helpers, and return
  the node or an error. A led is called only for a token whose lbp is greater
  than the binding power the expression is parsed with, so a token of lbp 0,
- such as an end token or a closing parenthesis, always ends an expression.
+ such as an end token or a closing parenthesis, ends every expression parsed
+ with a binding power of 0 or more.
 
  @tparam G The grammar's type, which names its node `node_type`.
  @tparam S The type of the token stream, which models @ref token_stream.
