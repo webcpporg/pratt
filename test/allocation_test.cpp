@@ -15,7 +15,9 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <new>
 #include <string_view>
 
@@ -38,8 +40,10 @@ std::size_t global_allocations = 0;  // NOLINT(cppcoreguidelines-avoid-non-const
 }  // namespace
 
 // The replacements of the global operator new and operator delete, for this program alone, which
-// count every allocation. The standard library declares them with parameter names reserved to the
-// implementation, which a program may not use, hence the exemption on each.
+// count every allocation, an over-aligned one included (a Number whose alignment is above
+// __STDCPP_DEFAULT_NEW_ALIGNMENT__ is allocated through the align_val_t forms). The standard
+// library declares them with parameter names reserved to the implementation, which a program may
+// not use, hence the exemption on each.
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void* operator new(std::size_t size) {
@@ -58,6 +62,31 @@ void operator delete(void* memory) noexcept {
 
 // NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
 void operator delete(void* memory, std::size_t /*size*/) noexcept {
+    std::free(memory);
+}
+
+/**
+ The aligned allocation, from aligned_alloc, whose size must be a multiple of the alignment.
+*/
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++global_allocations;
+    const auto bytes = static_cast<std::size_t>(alignment);
+    const std::size_t rounded = size == 0 ? bytes : (size + bytes - 1) / bytes * bytes;
+    void* memory = std::aligned_alloc(bytes, rounded);
+    if (memory == nullptr) {
+        std::abort();
+    }
+    return memory;
+}
+
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* memory, std::align_val_t /*alignment*/) noexcept {
+    std::free(memory);
+}
+
+// NOLINTNEXTLINE(readability-inconsistent-declaration-parameter-name)
+void operator delete(void* memory, std::size_t /*size*/, std::align_val_t /*alignment*/) noexcept {
     std::free(memory);
 }
 
@@ -127,9 +156,26 @@ void the_environment_allocates_only_through_its_allocator() {
     BOOST_TEST_EQ(count.deallocations, count.allocations);
 }
 
+/** A type whose alignment is above what the plain operator new guarantees. */
+struct alignas(2 * __STDCPP_DEFAULT_NEW_ALIGNMENT__) over_aligned {
+    std::array<char, 2 * __STDCPP_DEFAULT_NEW_ALIGNMENT__> bytes{};
+};
+
+/** An over-aligned allocation goes through the replaced aligned operator new, and is counted. */
+void an_over_aligned_allocation_is_counted() {
+    std::allocator<over_aligned> allocator;
+    const std::size_t before = global_allocations;
+    over_aligned* object = allocator.allocate(3);
+    const std::size_t after = global_allocations;
+    BOOST_TEST_EQ(after - before, 1U);
+    BOOST_TEST_EQ(reinterpret_cast<std::uintptr_t>(object) % alignof(over_aligned), 0U);
+    allocator.deallocate(object, 3);
+}
+
 }  // namespace
 
 int main() {
+    an_over_aligned_allocation_is_counted();
     a_fixed_environment_allocates_nothing();
     the_environment_allocates_only_through_its_allocator();
     return boost::report_errors();

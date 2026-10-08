@@ -549,6 +549,12 @@ result<Number> power(const Number& base, const Number& exponent) {
  so an integer power is exact while it fits the type's precision, and a
  negative one is `1 / x^|n|`; only a non-integral exponent calls `pow`.
 
+ The tokens are read one at a time, and the first error in reading order is
+ the one returned: `=` checks its target before it reads its right operand,
+ so `5 = 3 $` gives @ref error::invalid_assignment_target. A write made
+ before the error stays made: `i++ $` increments `i`, then gives
+ @ref error::invalid_character.
+
  @tparam Environment The environment the grammar reads and writes, which
  must outlive the grammar.
 */
@@ -586,9 +592,13 @@ public:
     static constexpr int postfix_bp = 70;
 
     /**
-     The power of an invalid character, higher than every other, so that the
-     engine reads it wherever it stands and reports
-     @ref error::invalid_character there.
+     The power of an invalid character, higher than every other, so that one
+     after a complete operand is read as an operator, whose led gives
+     @ref error::invalid_character, rather than end the expression with
+     @ref error::trailing_input or @ref error::unexpected_end.
+
+     An error found earlier in reading order is still returned first, and a
+     write made before the character stays made.
     */
     static constexpr int invalid_bp = std::numeric_limits<int>::max();
 

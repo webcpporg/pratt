@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <concepts>
+#include <iomanip>
 #include <iostream>
 #include <numbers>
 #include <string_view>
@@ -89,7 +90,8 @@ void value_is(Environment& env, std::string_view source,
         return;
     }
     if (!BOOST_TEST(*got == expected)) {
-        std::cerr << "  in: " << source << " (got " << *got << ", expected " << expected << ")\n";
+        std::cerr << std::setprecision(17) << "  in: " << source << " (got " << *got
+                  << ", expected " << expected << ")\n";
     }
 }
 
@@ -201,6 +203,19 @@ void two_to_the_sixty_is_exact() {
     value_is(decimal, "2 ^ 60 == 1152921504606846976", decimal64_t(1));
 }
 
+/**
+ In double too, an integral power is repeated squaring, not std::pow.
+
+ Tip: squaring gives 1.1 ^ 50 as 0x1.d5903bbcbf5cbp+6 (117.39085287969571), the same on every
+ lane, since each of its products is one correctly rounded IEEE multiplication; std::pow gives
+ 0x1.d5903bbcbf5dp+6 (117.39085287969579), five units in the last place away. Both were printed
+ with %a from this program's own arithmetic.
+*/
+void an_integral_power_squares_in_double() {
+    calc::environment<double> env;
+    value_is(env, "1.1 ^ 50", 0x1.d5903bbcbf5cbp+6);
+}
+
 /** A literal with 15 fraction digits keeps them through the arithmetic, in decimal. */
 void a_long_fraction_keeps_its_digits() {
     calc::environment<decimal64_t> env;
@@ -299,9 +314,12 @@ void an_undefined_name_errors_when_read() {
     value_is(env, "+x", Number(6));
 }
 
-/** An invalid character binds tightest, so the engine reaches it wherever it stands. */
+/**
+ An invalid character, where no earlier error stops the parse, gives invalid_character: not
+ trailing_input after a complete expression, nor unexpected_end where an operand is missing.
+*/
 template <class Number>
-void an_invalid_character_is_reported_where_it_stands() {
+void an_invalid_character_is_neither_trailing_input_nor_an_unexpected_end() {
     calc::environment<Number> env;
     error_is(env, "1 $ 2", pratt::error::invalid_character);
     error_is(env, "$", pratt::error::invalid_character);
@@ -311,6 +329,23 @@ void an_invalid_character_is_reported_where_it_stands() {
     error_is(env, "a = 1 $", pratt::error::invalid_character);
     error_is(env, "2 ^ 3 $", pratt::error::invalid_character);
     BOOST_TEST(env.lookup("a") == nullptr);
+}
+
+/**
+ The first error in reading order is the one returned, and a write made before it stays made.
+
+ Tip: `=` checks its target before it reads its right operand, and `i++` has written `i` before
+ the `$` after it is read.
+*/
+template <class Number>
+void the_first_error_in_reading_order_wins_and_earlier_writes_stay() {
+    calc::environment<Number> env;
+    error_is(env, "5 = 3 $", pratt::error::invalid_assignment_target);
+    value_is(env, "i = 1", Number(1));
+    error_is(env, "i++ $", pratt::error::invalid_character);
+    BOOST_TEST(value_of(env, "i") == Number(2));
+    error_is(env, "i++ )", pratt::error::trailing_input);
+    BOOST_TEST(value_of(env, "i") == Number(3));
 }
 
 /** `evaluate` hands its depth limit to the engine: `((1))` makes three expression calls. */
@@ -404,7 +439,8 @@ void every_case() {
     the_comparisons_answer_one_or_zero<Number>();
     parentheses_keep_the_name<Number>();
     an_undefined_name_errors_when_read<Number>();
-    an_invalid_character_is_reported_where_it_stands<Number>();
+    an_invalid_character_is_neither_trailing_input_nor_an_unexpected_end<Number>();
+    the_first_error_in_reading_order_wins_and_earlier_writes_stay<Number>();
     evaluate_passes_its_depth_limit<Number>();
     the_environment_inserts_or_replaces<Number>();
 }
@@ -417,6 +453,7 @@ int main() {
     every_case<decimal64_t>();
     every_case<double>();
     two_to_the_sixty_is_exact();
+    an_integral_power_squares_in_double();
     a_long_fraction_keeps_its_digits();
     a_fractional_power_goes_through_pow<decimal64_t>(decimal64_t(141421356237309, -14),
                                                      decimal64_t(141421356237310, -14));
