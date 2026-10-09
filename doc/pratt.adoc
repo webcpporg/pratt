@@ -52,3 +52,5 @@ what it asks of its caller and how it fails. The other sections teach the
 library; this one is where a name is looked up.
 
 include::{reference}[leveloffset=+1]
+
+include::changelog.adoc[]
