@@ -68,7 +68,8 @@ Two layers, kept apart:
   proxy. It compares what a step adds, and that every allocation is given
   back.
 - **No exceptions in a header.** The headers compile without exceptions,
-  which the lint checks: no `throw`, `try` or `catch` under `include/`.
+  which the lint checks by compiling every public header, and every test and
+  example, without them: no `throw`, `try` or `catch` under `include/`.
 - **openui-lang.** The micro-subset in `example/openui/grammar.hpp` is the
   seed of a future parser of openui-lang. Name the language openui-lang,
   alone, in every file and commit. `test/openui_test.cpp` shares the grammar

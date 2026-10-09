@@ -165,7 +165,9 @@ alone:
 |===
 
 That pratt works without exceptions is checked by the lint, which compiles
-every public header with `exception-handling=off`.
+every public header, and every test and example, which instantiate its
+templates, with `exception-handling=off`; a template that none of them
+instantiates is not checked.
 
 From the root of a webcpp checkout, each of these builds and runs, natively:
 
@@ -178,10 +180,9 @@ The {n-examples} examples, each built, run, and its output compared with the
 one beside it.
 
 `b2 libs/pratt/test libs/pratt/example toolset=clang-wasip2 testing.launcher=wasmtime`::
-The same for wasm32-wasip2: {n-tests-wasip2} tests and
-{n-examples-wasip2} examples, each run by wasmtime. `toolset=clang-wasip3`
-does the same for wasm32-wasip3: {n-tests-wasip3} tests
-and {n-examples-wasip3} examples.
+The same for wasm32-wasip2: {n-tests-wasip2} tests and {n-examples-wasip2}
+examples, each run by wasmtime. `toolset=clang-wasip3` does the same for
+wasm32-wasip3: {n-tests-wasip3} tests and {n-examples-wasip3} examples.
 
 The WASI toolsets are b2's `clang`, which a `user-config.jam` registers
 against wasi-sdk, as

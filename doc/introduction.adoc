@@ -126,13 +126,14 @@ over after a whole expression.
 * *Exceptions are the program's choice.* pratt throws nothing of its own,
   and no header of it throws, tries or catches, so the same headers serve a
   build with exceptions and one without. webcpp builds pratt with exceptions
-  on every target, and its lint compiles every public header without them;
-  whether a program uses them is up to whoever builds it. A program without
-  exceptions defines `boost::throw_exception`, which Boost.System's `result`
-  names, as
+  on every target, and its lint compiles every public header, and every test
+  and example, without them; whether a program uses them is up to whoever
+  builds it. A program without exceptions defines `boost::throw_exception`,
+  which Boost.System's `result` names, as
   link:{webcpp-libs}/xactor/{webcpp-page}#xactor-quick-start-build[xactor's page]
   shows.
-* *RTTI is never restricted.* Every target is built with it, and pratt asks no program to turn it off.
+* *RTTI is never restricted.* Every target is built with it, and pratt asks
+  no program to turn it off.
 * *Nothing else:* no threads, no clock, no global or static mutable state,
   and no allocation in the engine (<<pratt-allocation>>).
 
