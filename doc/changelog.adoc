@@ -18,7 +18,6 @@ of every version are on webcpp's index page.
 // tag::unreleased[]
 * Fixed `calc::environment` failing to compile with a stateful allocator
 that has no default constructor.
-* Changed wasip2 to build with exceptions, as native and wasip3 already did.
 * Added the `WEBCPP_PRATT_NO_EXCEPTIONS` configuration macro, defined
 automatically or by the developer.
 * Added a changelog, the page's last appendix, with each version's changes.
