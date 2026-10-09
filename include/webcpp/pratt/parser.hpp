@@ -13,6 +13,8 @@
 #ifndef WEBCPP_PRATT_PARSER_HPP
 #define WEBCPP_PRATT_PARSER_HPP
 
+#include <webcpp/pratt/config.hpp>
+
 #include <webcpp/pratt/errors.hpp>
 
 #include <concepts>

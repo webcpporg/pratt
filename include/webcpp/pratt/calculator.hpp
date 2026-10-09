@@ -14,6 +14,8 @@
 #ifndef WEBCPP_PRATT_CALCULATOR_HPP
 #define WEBCPP_PRATT_CALCULATOR_HPP
 
+#include <webcpp/pratt/config.hpp>
+
 #include <webcpp/pratt/parser.hpp>
 
 #include <boost/decimal.hpp>

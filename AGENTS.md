@@ -70,6 +70,10 @@ Two layers, kept apart:
 - **No exceptions in a header.** The headers compile without exceptions,
   which the lint checks by compiling every public header, and every test and
   example, without them: no `throw`, `try` or `catch` under `include/`.
+- **`config.hpp` comes first.** Every public header includes
+  `<webcpp/pratt/config.hpp>` first, which defines `WEBCPP_PRATT_NO_EXCEPTIONS`
+  without exceptions or when a developer does; a header raises only through
+  `boost::throw_exception` (the lint's bare throw).
 - **openui-lang.** The micro-subset in `example/openui/grammar.hpp` is the
   seed of a future parser of openui-lang. Name the language openui-lang,
   alone, in every file and commit. `test/openui_test.cpp` shares the grammar
@@ -79,8 +83,8 @@ Two layers, kept apart:
 
 - Each `@see "<title>"` of a Doc Comment names a top-level chapter of the
   page: "Introduction", "Writing a grammar", "The calculator", "Errors",
-  "Limits", "Allocation". Renaming a chapter renames its `@see` lines in the
-  same commit; doc-check fails otherwise.
+  "Limits", "Allocation", "Testing". Renaming a chapter renames its `@see`
+  lines in the same commit; doc-check fails otherwise.
 - The guide's programs are `example/pratt_<topic>.cpp`, each with its
   `.expected`; the page shows their regions by tag, and some of their
   outputs by `lines=`. A change to a program's output checks the `lines=`

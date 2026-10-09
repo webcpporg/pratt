@@ -12,6 +12,13 @@ webcpp.targets native wasip2 wasip3 ;
 
 webcpp.headers-alone pratt : ../include ;
 
+# config.hpp defines WEBCPP_PRATT_NO_EXCEPTIONS exactly when the build has
+# no exceptions, and keeps it when a developer defines it in a build that
+# has them.
+webcpp.compile config : config_test.cpp ;
+webcpp.compile config_developer_defined : config_test.cpp
+  : <define>WEBCPP_PRATT_NO_EXCEPTIONS <define>WEBCPP_TEST_PRATT_DEVELOPER_DEFINED ;
+
 webcpp.run errors : errors_test.cpp ;
 webcpp.run engine : engine_test.cpp ;
 webcpp.run sexpr : sexpr_test.cpp ;
