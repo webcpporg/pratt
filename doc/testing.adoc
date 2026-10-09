@@ -152,18 +152,20 @@ alone:
 | native
 | Any toolset that is not one of the two below: GCC, Clang and MSVC among
   them. With exceptions, unless its user asks for `exception-handling=off`,
-  which links webcpp's `tools/throw_exception.cpp`, as on wasip2.
+  which links webcpp's `tools/throw_exception.cpp`.
 
 | wasip2
 | The toolset `clang-wasip2`, the Clang of wasi-sdk for wasm32-wasip2, run
-  by wasmtime. Without exceptions: with `BOOST_NO_EXCEPTIONS` and
-  `tools/throw_exception.cpp`. This is the build that proves pratt works
-  without exceptions.
+  by wasmtime. With exceptions, as WebAssembly's exception handling, as on
+  wasip3.
 
 | wasip3
 | The toolset `clang-wasip3`, for wasm32-wasip3, run by wasmtime. With
   exceptions, as WebAssembly's exception handling.
 |===
+
+That pratt works without exceptions is checked by the lint, which compiles
+every public header with `exception-handling=off`.
 
 From the root of a webcpp checkout, each of these builds and runs, natively:
 
@@ -176,9 +178,9 @@ The {n-examples} examples, each built, run, and its output compared with the
 one beside it.
 
 `b2 libs/pratt/test libs/pratt/example toolset=clang-wasip2 testing.launcher=wasmtime`::
-The same for wasm32-wasip2, without exceptions: {n-tests-wasip2} tests and
+The same for wasm32-wasip2: {n-tests-wasip2} tests and
 {n-examples-wasip2} examples, each run by wasmtime. `toolset=clang-wasip3`
-does the same for wasm32-wasip3, with exceptions: {n-tests-wasip3} tests
+does the same for wasm32-wasip3: {n-tests-wasip3} tests
 and {n-examples-wasip3} examples.
 
 The WASI toolsets are b2's `clang`, which a `user-config.jam` registers

@@ -67,8 +67,8 @@ Two layers, kept apart:
   allocates when it is built, and in a debug build each container adds a
   proxy. It compares what a step adds, and that every allocation is given
   back.
-- **No exceptions in a header.** The same headers build without exceptions
-  on wasip2: no `throw`, `try` or `catch` under `include/`.
+- **No exceptions in a header.** The headers compile without exceptions,
+  which the lint checks: no `throw`, `try` or `catch` under `include/`.
 - **openui-lang.** The micro-subset in `example/openui/grammar.hpp` is the
   seed of a future parser of openui-lang. Name the language openui-lang,
   alone, in every file and commit. `test/openui_test.cpp` shares the grammar
