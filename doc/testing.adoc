@@ -142,17 +142,21 @@ standard input when there is one, and compares what it printed with the
 === Targets
 
 `test/Jamfile` and `example/Jamfile` declare the targets they are built for,
-`webcpp.targets native wasip2 wasip3`, and b2 builds each program for those
-alone:
+`webcpp.targets native emscripten wasip2 wasip3`, and b2 builds each program
+for those alone:
 
 [cols="1,3",options="header"]
 |===
 | Target | How it is built and run
 
 | native
-| Any toolset that is not one of the two below: GCC, Clang and MSVC among
+| Any toolset that is not one of the three below: GCC, Clang and MSVC among
   them. With exceptions, unless its user asks for `exception-handling=off`,
   which links webcpp's `tools/throw_exception.cpp`.
+
+| emscripten
+| b2's toolset `emscripten`, wasm32, run by node: {n-tests-emscripten} tests
+  and {n-examples-emscripten} examples.
 
 | wasip2
 | The toolset `clang-wasip2`, the Clang of wasi-sdk for wasm32-wasip2, run
@@ -190,6 +194,10 @@ The {n-tests-native} tests: the lightweight_test programs, and each of the
 The {n-examples} examples, each built, run, and its output compared with the
 one beside it.
 
+`b2 libs/pratt/test libs/pratt/example toolset=emscripten`::
+The same on emscripten: {n-tests-emscripten} tests and {n-examples-emscripten}
+examples, each run by node, b2's toolset itself.
+
 `b2 libs/pratt/test libs/pratt/example toolset=clang-wasip2 testing.launcher=wasmtime`::
 The same for wasm32-wasip2: {n-tests-wasip2} tests and {n-examples-wasip2}
 examples, each run by wasmtime. `toolset=clang-wasip3` does the same for
@@ -198,9 +206,12 @@ wasm32-wasip3: {n-tests-wasip3} tests and {n-examples-wasip3} examples.
 The WASI toolsets are b2's `clang`, which a `user-config.jam` registers
 against wasi-sdk, as
 link:{webcpp-libs}/xactor/{webcpp-page}#xactor-testing-targets[xactor's page]
-shows. b2 compares timestamps, so a result that counts is built from
-scratch, with `b2 -a`. `b2 libs/pratt/test//calculator` builds and runs one
-test alone, while working on it.
+shows. The emscripten toolset is registered against emsdk, as
+link:{webcpp-libs}/trystero/{webcpp-page}#trystero-building-emscripten[trystero's
+page] shows, and runs a program with node itself, never with a
+`testing.launcher`. b2 compares timestamps, so a result that counts is built
+from scratch, with `b2 -a`. `b2 libs/pratt/test//calculator` builds and runs
+one test alone, while working on it.
 
 [#pratt-testing-report]
 === The test matrix

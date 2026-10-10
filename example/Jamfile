@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/pratt//pratt ;
 
 import webcpp ;
 
-webcpp.targets native wasip2 wasip3 ;
+webcpp.targets native emscripten wasip2 wasip3 ;
 
 # The guide's programs, each shown on the page with the output it prints.
 webcpp.example pratt_first_grammar.cpp ;

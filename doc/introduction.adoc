@@ -116,9 +116,9 @@ over after a whole expression.
 === Requirements
 
 * *A {cpp}20 compiler.* pratt's tests and examples are built and run on
-  every native lane of webcpp's continuous integration, and for
-  wasm32-wasip2 and wasm32-wasip3 with the Clang of wasi-sdk, under
-  wasmtime (<<pratt-testing>>).
+  every native lane of webcpp's continuous integration, on emscripten under
+  node, and for wasm32-wasip2 and wasm32-wasip3 with the Clang of wasi-sdk,
+  under wasmtime (<<pratt-testing>>).
 * *Boost's headers, 1.92 or newer.* The engine uses Boost.System, for
   `result` and the error codes, and the calculator Boost.Decimal, for its
   default number type. pratt is header-only, and nothing of Boost is

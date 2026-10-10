@@ -23,7 +23,7 @@ program's.
 `<webcpp/pratt.hpp>` includes the engine, whose names are in the namespace
 `webcpp::pratt`; the calculator's are in `webcpp::pratt::calc`. pratt needs
 Boost's headers and nothing to build or link. It runs natively, on
-wasm32-wasip2 and on wasm32-wasip3.
+emscripten, on wasm32-wasip2 and on wasm32-wasip3.
 
 ## A minimal example
 
@@ -158,7 +158,9 @@ developed inside Boost:
     b2 libs/pratt/test libs/pratt/example
 
 builds the tests and the examples natively, runs every example and compares
-its output with the `.expected` file beside it.
+its output with the `.expected` file beside it. `toolset=emscripten` does
+the same on emscripten, run by node, with the toolset that `user-config.jam`
+registers against emsdk.
 `toolset=clang-wasip2 testing.launcher=wasmtime` and
 `toolset=clang-wasip3 testing.launcher=wasmtime` do the same for WASI, with
 the toolsets that `user-config.jam` registers against wasi-sdk. A b2 project
