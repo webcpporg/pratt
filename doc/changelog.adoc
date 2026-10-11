@@ -16,6 +16,7 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
+* Added emscripten as a target: the tests and examples run under Node.
 * Fixed `calc::environment` failing to compile with a stateful allocator
 that has no default constructor.
 * Added the `WEBCPP_PRATT_NO_EXCEPTIONS` configuration macro, defined
