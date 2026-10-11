@@ -230,4 +230,4 @@ matrix: a page of the libraries by lanes, and a page of each library's tests
 and examples by lanes, where each cell says whether that program passed in
 that lane, or how it failed, at compile time, at link time or when it ran.
 The matrix is published with the documentation, at
-https://webcpporg.github.io/webcpp/report/.
+https://webcpporg.github.io/report/.

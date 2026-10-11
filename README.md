@@ -169,7 +169,7 @@ uses pratt through `/webcpp/pratt//pratt`.
 ## Documentation
 
 pratt's page, with its API reference, is published at
-<https://webcpporg.github.io/webcpp/libs/pratt/>; `b2 libs/pratt/doc`
+<https://webcpporg.github.io/libs/pratt/>; `b2 libs/pratt/doc`
 builds it into `doc/html/index.html`.
 
 ## License
