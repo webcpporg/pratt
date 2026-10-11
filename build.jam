@@ -6,8 +6,9 @@
 #
 # pratt, a generic header-only Pratt parser engine, with a decimal
 # calculator built on it. A program uses it through
-# /webcpp/pratt//pratt, which adds its headers and Boost's.
+# /webcpp/pratt//pratt, which adds its headers, Boost's and
+# webcpp's configuration.
 
 project /webcpp/pratt ;
 
-alias pratt : : : : <include>include <library>/boost//headers ;
+alias pratt : : : : <include>include <library>/boost//headers <library>/webcpp/config//config ;

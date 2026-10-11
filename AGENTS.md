@@ -74,8 +74,12 @@ Two layers, kept apart:
   which the lint checks by compiling every public header, and every test and
   example, without them: no `throw`, `try` or `catch` under `include/`.
 - **`config.hpp` comes first.** Every public header includes
-  `<webcpp/pratt/config.hpp>` first, which defines `WEBCPP_PRATT_NO_EXCEPTIONS`
-  without exceptions or when a developer does; a header raises only through
+  `<webcpp/pratt/config.hpp>` first, which includes `<webcpp/config.hpp>` first
+  and defines `WEBCPP_PRATT_NO_EXCEPTIONS` when webcpp has no exceptions
+  (`WEBCPP_HAS_EXCEPTIONS` is not defined: the compiler has none, or the
+  program defined `WEBCPP_NO_EXCEPTIONS`) or when a program defines it for
+  pratt alone; the tests `config`, `config_developer_defined` and
+  `config_all_off` check the three ways. A header raises only through
   `boost::throw_exception` (the lint's bare throw).
 - **openui-lang.** The micro-subset in `example/openui/grammar.hpp` is the
   seed of a future parser of openui-lang. Name the language openui-lang,

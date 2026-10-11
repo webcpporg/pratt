@@ -22,8 +22,9 @@ program's.
 
 `<webcpp/pratt.hpp>` includes the engine, whose names are in the namespace
 `webcpp::pratt`; the calculator's are in `webcpp::pratt::calc`. pratt needs
-Boost's headers and nothing to build or link. It runs natively, on
-emscripten, on wasm32-wasip2 and on wasm32-wasip3.
+Boost's headers and webcpp's configuration, config, and nothing to build or
+link. It runs natively, on emscripten, on wasm32-wasip2 and on
+wasm32-wasip3.
 
 ## A minimal example
 

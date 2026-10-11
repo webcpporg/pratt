@@ -123,6 +123,10 @@ over after a whole expression.
   `result` and the error codes, and the calculator Boost.Decimal, for its
   default number type. pratt is header-only, and nothing of Boost is
   compiled for it.
+* *webcpp's configuration,*
+  link:{webcpp-libs}/config/{webcpp-page}#config-exceptions[config], whose
+  `<webcpp/config.hpp>` every header of pratt includes first. It is
+  header-only too.
 * *Exceptions are the program's choice.* pratt throws nothing of its own,
   and no header of it throws, tries or catches, so the same headers serve a
   build with exceptions and one without. webcpp builds pratt with exceptions
