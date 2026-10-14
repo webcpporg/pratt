@@ -16,6 +16,12 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
+// end::unreleased[]
+
+[#pratt-changelog-0-1-0]
+=== webcpp 0.1.0
+
+// tag::0.1.0[]
 * Added emscripten as a target: the tests and examples run under Node.
 * Fixed `calc::environment` failing to compile with a stateful allocator
 that has no default constructor.
@@ -26,4 +32,4 @@ automatically or by the developer.
 configuration, which the build adds.
 * Added `WEBCPP_NO_EXCEPTIONS`, which disables pratt's exceptions with every
 webcpp library's.
-// end::unreleased[]
+// end::0.1.0[]
